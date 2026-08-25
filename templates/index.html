@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Visor de autómatas — Proyecto 1</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='estilo.css') }}">
+</head>
+<body>
+
+<header class="marco">
+  <div class="titulo">
+    <h1>Regex <span class="flecha">→</span> AFN <span class="flecha">→</span> AFD <span class="flecha">→</span> mínimo</h1>
+    <p class="pie">Teoría de la Computación · Proyecto 1 · epsilon se escribe <code>{{ epsilon }}</code></p>
+  </div>
+</header>
+
+<section class="marco entrada">
+  <label class="campo campo-ancho">
+    <span class="etiqueta">expresión regular r</span>
+    <input id="regex" type="text" value="(b|b)*abb(a|b)*" spellcheck="false" autocomplete="off">
+  </label>
+  <label class="campo">
+    <span class="etiqueta">cadena w</span>
+    <input id="cadena" type="text" value="babbaaaa" spellcheck="false" autocomplete="off">
+  </label>
+</section>
+
+<section class="marco archivo">
+  <label class="boton boton-archivo" tabindex="0">
+    cargar .txt
+    <input type="file" id="archivo" accept=".txt,text/plain" hidden>
+  </label>
+  <span class="nombre-archivo" id="nombreArchivo">
+    sin archivo — se evalúa la expresión escrita arriba
+  </span>
+  <button class="boton boton-fino oculto" id="generarPng">generar PNGs</button>
+  <button class="boton boton-fino oculto" id="quitarArchivo">quitar</button>
+</section>
+
+<section class="marco lista-zona oculto" id="listaZona">
+  <div class="lista" id="lista"></div>
+</section>
+
+<section class="marco lectura">
+  <div class="postfix">
+    <span class="etiqueta">postfix</span>
+    <code id="postfix">—</code>
+  </div>
+  <div class="veredictos" id="veredictos"></div>
+</section>
+
+<div id="aviso" class="aviso oculto"></div>
+
+<!-- La cinta: un símbolo por celda, con la cabeza de lectura avanzando -->
+<section class="marco cinta-zona">
+  <div class="cinta" id="cinta"></div>
+  <div class="transporte">
+    <button id="anterior" class="boton" title="Paso anterior (←)">◀</button>
+    <button id="reproducir" class="boton boton-play" title="Reproducir (espacio)">▶ correr</button>
+    <button id="siguiente" class="boton" title="Paso siguiente (→)">▶</button>
+    <span class="contador" id="contador">paso 0 / 0</span>
+    <span class="lectura-estado" id="lecturaEstado"></span>
+  </div>
+</section>
+
+<section class="marco grafos">
+  <nav class="pestanas" id="pestanas">
+    <button class="pestana activa" data-clave="afn">AFN <em id="n-afn"></em></button>
+    <button class="pestana" data-clave="afd">AFD <em id="n-afd"></em></button>
+    <button class="pestana" data-clave="min">AFD mínimo <em id="n-min"></em></button>
+    <span class="ayuda-zoom">rueda para zoom · arrastrá para mover</span>
+    <button class="boton boton-fino" id="encajar">encajar</button>
+  </nav>
+  <div class="lienzo" id="lienzo">
+    <div class="capa" id="capa"></div>
+    <p class="vacio" id="vacio">Escribí una expresión regular arriba.</p>
+  </div>
+</section>
+
+<script>window.EPSILON = {{ epsilon | tojson }};</script>
+<script src="{{ url_for('static', filename='visor.js') }}"></script>
+</body>
+</html>

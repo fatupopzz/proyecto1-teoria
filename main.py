@@ -1,0 +1,173 @@
+#!/usr/bin/env python3
+"""
+Proyecto 1 - Teoria de la Computacion
+Universidad del Valle de Guatemala
+
+Lee un archivo de texto con una expresion regular por linea y, para cada una:
+    1. Convierte de infix a postfix (Shunting Yard)
+    2. Construye el AFN (Thompson)
+    3. Construye el AFD (Subconjuntos)
+    4. Minimiza el AFD
+    5. Simula el AFN y ambos AFDs con la cadena w
+
+Uso:
+    python main.py                          -> modo interactivo
+    python main.py expresiones.txt          -> pide la cadena w y procesa el archivo
+    python main.py expresiones.txt babbaaaa -> procesa el archivo con esa cadena
+"""
+
+import os
+import sys
+
+from src.shunting_yard import a_postfix, validar, EPSILON
+from src.thompson import construir_afn
+from src.subconjuntos import construir_afd
+from src.minimizacion import minimizar
+from src.simulacion import (simular_afn, simular_afd,
+                            formato_traza_afn, formato_traza_afd)
+from src.visualizacion import graficar_afn, graficar_afd, GRAPHVIZ_DISPONIBLE
+
+CARPETA_SALIDA = 'output'
+ANCHO = 72
+
+
+def separador(caracter='='):
+    print(caracter * ANCHO)
+
+
+def respuesta(aceptada):
+    return "si" if aceptada else "no"
+
+
+def procesar(regex, cadena, indice=1, carpeta=CARPETA_SALIDA, verbose=True):
+    """Ejecuta el pipeline completo para una expresion regular y una cadena."""
+    separador()
+    print(f"EXPRESION {indice}: {regex}")
+    print(f"CADENA w  : {cadena if cadena else '(vacia)'}")
+    separador()
+
+    validar(regex)
+
+    # 1. Shunting Yard
+    tokens, postfix = a_postfix(regex)
+    print(f"\n[1] Postfix (Shunting Yard): {postfix}")
+
+    # 2. Thompson
+    afn = construir_afn(tokens)
+    print(f"\n[2] AFN construido con Thompson: "
+          f"{len(afn.estados)} estados, alfabeto = {sorted(afn.alfabeto)}")
+    if verbose:
+        print(afn)
+
+    # 3. Subconjuntos
+    afd = construir_afd(afn)
+    print(f"\n[3] AFD por construccion de subconjuntos: "
+          f"{len(afd.estados)} estados")
+    if verbose:
+        print(afd)
+
+    # 4. Minimizacion
+    afd_min = minimizar(afd)
+    print(f"\n[4] AFD minimizado: {len(afd.estados)} -> "
+          f"{len(afd_min.estados)} estados")
+    if verbose:
+        print(afd_min)
+
+    # 5. Simulacion
+    print("\n[5] Simulacion de la cadena w:")
+    ac_afn, traza_afn = simular_afn(afn, cadena)
+    ac_afd, traza_afd = simular_afd(afd, cadena)
+    ac_min, traza_min = simular_afd(afd_min, cadena)
+
+    print(f"    AFN            : {respuesta(ac_afn)}")
+    if verbose:
+        print(f"      traza: {formato_traza_afn(traza_afn)}")
+    print(f"    AFD            : {respuesta(ac_afd)}")
+    if verbose:
+        print(f"      traza: {formato_traza_afd(traza_afd)}")
+    print(f"    AFD minimizado : {respuesta(ac_min)}")
+    if verbose:
+        print(f"      traza: {formato_traza_afd(traza_min)}")
+
+    if not (ac_afn == ac_afd == ac_min):
+        print("\n    [ADVERTENCIA] Los automatas no coinciden en el resultado.")
+
+    print(f"\n    >>> w = '{cadena}' {'SI' if ac_afn else 'NO'} pertenece a L(r)")
+
+    # Imagenes
+    if not GRAPHVIZ_DISPONIBLE:
+        print("\n[!] graphviz no esta instalado: no se generaron imagenes.")
+        print("    Instalalo con: pip install graphviz && sudo dnf install graphviz")
+    else:
+        os.makedirs(carpeta, exist_ok=True)
+        archivos = [
+            graficar_afn(afn, os.path.join(carpeta, f'{indice:02d}_afn'),
+                         f'AFN (Thompson) - r = {regex}'),
+            graficar_afd(afd, os.path.join(carpeta, f'{indice:02d}_afd'),
+                         f'AFD (Subconjuntos) - r = {regex}',
+                         mostrar_etiquetas=True),
+            graficar_afd(afd_min, os.path.join(carpeta, f'{indice:02d}_afd_min'),
+                         f'AFD minimizado - r = {regex}'),
+        ]
+        print("\n[6] Imagenes generadas:")
+        for archivo in archivos:
+            if archivo:
+                print(f"    {archivo}")
+
+    print()
+    return ac_afn, ac_afd, ac_min
+
+
+def procesar_archivo(ruta, cadena):
+    if not os.path.exists(ruta):
+        print(f"Error: no se encontro el archivo '{ruta}'")
+        sys.exit(1)
+
+    with open(ruta, encoding='utf-8') as f:
+        lineas = [ln.strip() for ln in f]
+
+    expresiones = [ln for ln in lineas if ln and not ln.startswith('#')]
+
+    if not expresiones:
+        print(f"El archivo '{ruta}' no contiene expresiones regulares.")
+        return
+
+    print(f"\nProcesando {len(expresiones)} expresiones de '{ruta}'")
+    print(f"Simbolo designado para epsilon: '{EPSILON}'\n")
+
+    for i, regex in enumerate(expresiones, start=1):
+        try:
+            procesar(regex, cadena, indice=i)
+        except ValueError as e:
+            separador()
+            print(f"EXPRESION {i}: {regex}")
+            print(f"  [ERROR] {e}\n")
+
+
+def modo_interactivo():
+    print("\nProyecto 1 - Teoria de la Computacion")
+    print(f"Simbolo designado para epsilon: '{EPSILON}'")
+    print("Operadores: | (union), * (kleene), + (una o mas), "
+          "? (opcional), () y \\ para escapar\n")
+
+    regex = input("Expresion regular r: ").strip()
+    cadena = input("Cadena w            : ").strip()
+
+    try:
+        procesar(regex, cadena)
+    except ValueError as e:
+        print(f"\n[ERROR] {e}")
+
+
+def main():
+    if len(sys.argv) == 1:
+        modo_interactivo()
+    elif len(sys.argv) == 2:
+        cadena = input("Cadena w a evaluar: ").strip()
+        procesar_archivo(sys.argv[1], cadena)
+    else:
+        procesar_archivo(sys.argv[1], sys.argv[2])
+
+
+if __name__ == '__main__':
+    main()

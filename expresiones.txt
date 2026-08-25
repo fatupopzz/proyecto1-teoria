@@ -1,0 +1,8 @@
+# Una expresion regular por linea. Las lineas con # se ignoran.
+(b|b)*abb(a|b)*
+(a*|b*)c
+(b|b)*abb(a|b)*
+0?(1?)?0*
+(a|ε)b(a|b)*
+letter(letter|digit)*
+(a|b)*a(a|b)(a|b)

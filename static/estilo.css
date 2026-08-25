@@ -1,0 +1,472 @@
+/* Visor de autómatas — Proyecto 1
+   Dirección visual: plano técnico. Retícula tenue sobre azul de noche,
+   todo en monoespaciada porque el tema del proyecto son símbolos sobre
+   una cinta. El color solo se usa para significar: menta = estado activo,
+   ámbar = aceptación, coral = la máquina murió. Nada decorativo. */
+
+:root {
+  --fondo:      #0b1520;
+  --panel:      #101d2b;
+  --panel-alto: #16273a;
+  --linea:      #23384f;
+  --tinta:      #cfe0ee;
+  --tenue:      #6d8aa6;
+  --apagado:    #445c75;
+
+  --vivo:       #6ee7c8;   /* estado activo en este paso */
+  --acepta:     #ffc14d;   /* estado de aceptación */
+  --muerto:     #ef6a86;   /* transición indefinida */
+
+  --mono: 'JetBrains Mono', ui-monospace, 'SF Mono', 'Cascadia Mono',
+          'Roboto Mono', Menlo, Consolas, monospace;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  padding: 0 0 3rem;
+  background-color: var(--fondo);
+  /* retícula de papel milimetrado */
+  background-image:
+    linear-gradient(rgba(35, 56, 79, .38) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(35, 56, 79, .38) 1px, transparent 1px);
+  background-size: 28px 28px;
+  color: var(--tinta);
+  font-family: var(--mono);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.marco {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 1.25rem;
+}
+
+/* ---------- encabezado ---------- */
+
+.titulo { padding: 1.6rem 0 1.15rem; }
+
+h1 {
+  margin: 0;
+  font-size: clamp(1.05rem, 3.4vw, 1.75rem);
+  font-weight: 800;
+  letter-spacing: -.02em;
+  text-transform: uppercase;
+}
+
+.flecha { color: var(--vivo); font-weight: 300; }
+
+.pie {
+  margin: .5rem 0 0;
+  color: var(--tenue);
+  font-size: .78rem;
+  letter-spacing: .04em;
+}
+
+.pie code {
+  color: var(--acepta);
+  background: var(--panel);
+  padding: .05rem .3rem;
+  border-radius: 2px;
+}
+
+/* ---------- entrada ---------- */
+
+.entrada {
+  display: flex;
+  gap: .75rem;
+  flex-wrap: wrap;
+}
+
+.campo { flex: 1 1 14rem; }
+.campo-ancho { flex: 2 1 24rem; }
+
+.etiqueta {
+  display: block;
+  font-size: .68rem;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--tenue);
+  margin-bottom: .35rem;
+}
+
+input[type=text] {
+  width: 100%;
+  padding: .7rem .85rem;
+  background: var(--panel);
+  border: 1px solid var(--linea);
+  border-radius: 3px;
+  color: var(--tinta);
+  font-family: var(--mono);
+  font-size: 1rem;
+  letter-spacing: .05em;
+}
+
+input[type=text]:focus {
+  outline: 2px solid var(--vivo);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+
+/* ---------- archivo del calificador ---------- */
+
+.archivo {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  flex-wrap: wrap;
+  margin-top: .8rem;
+}
+
+.boton-archivo { cursor: pointer; }
+.boton-archivo:hover { border-color: var(--vivo); color: var(--vivo); }
+.boton-archivo:focus-visible { outline: 2px solid var(--vivo); outline-offset: 2px; }
+
+.nombre-archivo {
+  font-size: .74rem;
+  color: var(--tenue);
+  letter-spacing: .04em;
+}
+
+.nombre-archivo strong { color: var(--tinta); font-weight: 600; }
+
+.lista-zona { margin-top: .8rem; }
+
+.lista {
+  max-height: 15rem;
+  overflow-y: auto;
+  border: 1px solid var(--linea);
+  border-radius: 3px;
+  background: rgba(16, 29, 43, .7);
+}
+
+.fila {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  width: 100%;
+  padding: .45rem .7rem;
+  background: none;
+  border: none;
+  border-bottom: 1px solid rgba(35, 56, 79, .55);
+  color: var(--tinta);
+  font-family: var(--mono);
+  font-size: .8rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fila:last-child { border-bottom: none; }
+.fila:hover { background: var(--panel-alto); }
+.fila:focus-visible { outline: 2px solid var(--vivo); outline-offset: -2px; }
+
+.fila.elegida { background: var(--panel-alto); box-shadow: inset 3px 0 0 var(--vivo); }
+
+.fila .n { color: var(--apagado); font-size: .72rem; flex: 0 0 1.6rem; }
+
+.fila code {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  letter-spacing: .04em;
+}
+
+.fila .tamanos {
+  flex: 0 0 auto;
+  font-size: .7rem;
+  color: var(--apagado);
+  letter-spacing: .04em;
+}
+
+.fila .marca {
+  flex: 0 0 2.4rem;
+  text-align: right;
+  font-size: .74rem;
+  letter-spacing: .05em;
+}
+
+.fila .marca.si { color: var(--acepta); }
+.fila .marca.no { color: var(--tenue); }
+.fila .marca.mal { color: var(--muerto); }
+
+/* ---------- lectura ---------- */
+
+.lectura {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+}
+
+.postfix { min-width: 0; flex: 1 1 20rem; }
+
+.postfix code {
+  display: block;
+  font-size: 1.05rem;
+  letter-spacing: .1em;
+  color: var(--vivo);
+  word-break: break-all;
+}
+
+.veredictos { display: flex; gap: .4rem; flex-wrap: wrap; }
+
+.chip {
+  padding: .3rem .6rem;
+  border: 1px solid var(--linea);
+  border-radius: 3px;
+  font-size: .72rem;
+  letter-spacing: .05em;
+  color: var(--tenue);
+  background: var(--panel);
+  white-space: nowrap;
+}
+
+.chip.si { color: var(--acepta); border-color: var(--acepta); }
+.chip.no { color: var(--muerto); border-color: rgba(239, 106, 134, .45); }
+
+.aviso {
+  max-width: 1180px;
+  margin: 1rem auto 0;
+  padding: .7rem 1rem;
+  background: rgba(239, 106, 134, .1);
+  border-left: 3px solid var(--muerto);
+  color: var(--muerto);
+  font-size: .82rem;
+}
+
+.aviso.nota {
+  background: rgba(255, 193, 77, .08);
+  border-left-color: var(--acepta);
+  color: var(--acepta);
+}
+
+.oculto { display: none; }
+
+/* ---------- la cinta (elemento firma) ---------- */
+
+.cinta-zona { margin-top: 1.15rem; }
+
+.cinta {
+  display: flex;
+  align-items: stretch;
+  gap: 3px;
+  overflow-x: auto;
+  padding: .3rem .1rem 1.35rem;
+  min-height: 4.4rem;
+}
+
+.celda {
+  position: relative;
+  flex: 0 0 auto;
+  min-width: 2.5rem;
+  padding: .6rem .4rem;
+  text-align: center;
+  font-size: 1.15rem;
+  background: var(--panel);
+  border: 1px solid var(--linea);
+  border-radius: 2px;
+  color: var(--apagado);
+  cursor: pointer;
+  transition: color .12s, border-color .12s, background .12s;
+}
+
+.celda:hover { border-color: var(--tenue); }
+
+/* ya consumida */
+.celda.leida { color: var(--tenue); background: var(--panel-alto); }
+
+/* el símbolo que se acaba de leer */
+.celda.cabeza {
+  color: var(--fondo);
+  background: var(--vivo);
+  border-color: var(--vivo);
+  font-weight: 600;
+}
+
+.celda.cabeza.rechazo { background: var(--muerto); border-color: var(--muerto); }
+
+/* marca de la cabeza de lectura debajo de la celda */
+.celda.cabeza::after {
+  content: '▲';
+  position: absolute;
+  left: 0; right: 0; bottom: -1.2rem;
+  font-size: .6rem;
+  color: var(--vivo);
+}
+
+.celda.cabeza.rechazo::after { color: var(--muerto); }
+
+.celda-inicio {
+  cursor: pointer;
+  min-width: 2.1rem;
+  color: var(--tenue);
+  background: transparent;
+  border-style: dashed;
+}
+
+.celda-inicio.cabeza { color: var(--fondo); }
+
+.cinta-vacia {
+  color: var(--tenue);
+  font-size: .82rem;
+  padding: 1.1rem .2rem;
+  letter-spacing: .05em;
+}
+
+/* ---------- transporte ---------- */
+
+.transporte {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--linea);
+  padding-top: .8rem;
+}
+
+.boton {
+  padding: .4rem .7rem;
+  background: var(--panel);
+  border: 1px solid var(--linea);
+  border-radius: 3px;
+  color: var(--tinta);
+  font-family: var(--mono);
+  font-size: .8rem;
+  cursor: pointer;
+}
+
+.boton:hover:not(:disabled) { border-color: var(--vivo); color: var(--vivo); }
+.boton:disabled { opacity: .35; cursor: default; }
+.boton:focus-visible { outline: 2px solid var(--vivo); outline-offset: 2px; }
+
+.boton-play { min-width: 6.5rem; }
+.boton-fino { padding: .25rem .55rem; font-size: .72rem; }
+
+.contador {
+  font-size: .75rem;
+  color: var(--tenue);
+  letter-spacing: .08em;
+  margin-left: .3rem;
+}
+
+.lectura-estado {
+  font-size: .78rem;
+  color: var(--vivo);
+  margin-left: auto;
+  letter-spacing: .04em;
+  word-break: break-all;
+}
+
+/* ---------- grafos ---------- */
+
+.grafos { margin-top: 1.25rem; }
+
+.pestanas {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--linea);
+}
+
+.pestana {
+  padding: .55rem .8rem;
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--tenue);
+  font-family: var(--mono);
+  font-size: .82rem;
+  letter-spacing: .04em;
+  cursor: pointer;
+}
+
+.pestana em {
+  font-style: normal;
+  color: var(--apagado);
+  font-size: .72rem;
+  margin-left: .2rem;
+}
+
+.pestana:hover { color: var(--tinta); }
+.pestana.activa { color: var(--vivo); border-bottom-color: var(--vivo); }
+.pestana.activa em { color: var(--vivo); }
+.pestana:focus-visible { outline: 2px solid var(--vivo); outline-offset: -2px; }
+
+.ayuda-zoom {
+  margin-left: auto;
+  font-size: .68rem;
+  color: var(--apagado);
+  letter-spacing: .06em;
+}
+
+.lienzo {
+  position: relative;
+  height: min(56vh, 560px);
+  overflow: hidden;
+  background: rgba(11, 21, 32, .55);
+  border: 1px solid var(--linea);
+  border-top: none;
+  border-radius: 0 0 3px 3px;
+  cursor: grab;
+}
+
+.lienzo.arrastrando { cursor: grabbing; }
+
+.capa {
+  position: absolute;
+  top: 0; left: 0;
+  transform-origin: 0 0;
+}
+
+.capa svg { display: block; }
+
+.vacio {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  color: var(--tenue);
+  font-size: .85rem;
+  letter-spacing: .05em;
+  pointer-events: none;
+}
+
+.vacio.oculto { display: none; }
+
+/* ---------- resaltado sobre el SVG de Graphviz ----------
+   Los atributos de presentación de Graphviz tienen menor prioridad
+   que cualquier regla CSS, así que basta con seleccionar. */
+
+.capa svg text { transition: fill .12s; }
+
+/* estado de aceptación: círculo exterior en ámbar */
+g.node.aceptacion ellipse { stroke: var(--acepta); }
+g.node.aceptacion text { fill: var(--acepta); }
+
+/* estado activo en el paso actual */
+g.node.activo ellipse { stroke: var(--vivo); stroke-width: 2.2; }
+g.node.activo text { fill: var(--vivo); font-weight: 700; }
+g.node.activo ellipse:last-of-type { fill: rgba(110, 231, 200, .13); }
+
+/* aristas recorridas en este paso */
+g.edge.recorrida path { stroke: var(--vivo); stroke-width: 2.2; }
+g.edge.recorrida polygon { fill: var(--vivo); stroke: var(--vivo); }
+g.edge.recorrida text { fill: var(--vivo); font-weight: 700; }
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+
+@media (max-width: 620px) {
+  .lectura-estado { margin-left: 0; width: 100%; }
+  .ayuda-zoom { display: none; }
+}
