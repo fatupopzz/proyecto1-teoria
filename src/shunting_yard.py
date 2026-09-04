@@ -10,7 +10,9 @@ Operadores soportados:
     ()  agrupacion
     \\   caracter de escape (ej. \\* representa el simbolo literal '*')
 
-El simbolo designado para epsilon es 'e' (EPSILON).
+El simbolo designado para epsilon es 'e' griega minuscula, U+03B5
+(la constante EPSILON). Se eligio porque no es letra ni numero del
+alfabeto de entrada, asi que no puede colisionar con un simbolo.
 """
 
 EPSILON = 'ε'

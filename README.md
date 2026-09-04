@@ -51,7 +51,10 @@ python main.py
 ```
 
 Las imágenes quedan en `output/` con el formato `NN_afn.png`, `NN_afd.png`
-y `NN_afd_min.png`, donde `NN` es el número de línea de la expresión.
+y `NN_afd_min.png`, donde `NN` es la posición de la expresión entre las líneas
+válidas del archivo (las líneas vacías y los comentarios no cuentan). La carpeta
+se limpia al inicio de cada corrida, así que nunca quedan imágenes de una
+corrida anterior mezcladas con las nuevas.
 
 ## Visor en vivo
 
@@ -110,11 +113,30 @@ lo que se ve en pantalla es el mismo cálculo que genera los PNG del entregable.
 ## Pruebas
 
 ```bash
-python tests.py
+python tests.py                  # 30 casos escritos a mano, corre en un instante
+python pruebas_exhaustivas.py    # suite completa, ~6600 verificaciones
+python pruebas_exhaustivas.py --rapido
+python pruebas_exhaustivas.py --semilla 42   # reproducir una corrida
 ```
 
-Verifica 30 casos comprobando que el AFN, el AFD y el AFD minimizado
-siempre coincidan en la respuesta y que ésta sea la esperada.
+`tests.py` verifica 30 casos fijos comprobando que el AFN, el AFD y el AFD
+minimizado (por los dos métodos) coincidan y que la respuesta sea la esperada.
+
+`pruebas_exhaustivas.py` genera los casos en lugar de escribirlos, y se apoya
+en un **oráculo independiente**: el módulo `re` de Python. Siete bloques:
+
+| # | Bloque | Qué comprueba |
+|---|---|---|
+| 1 | Oráculo | ~38 000 comparaciones contra `re.fullmatch` sobre expresiones generadas al azar y todas las cadenas hasta longitud 6 |
+| 2 | Invariantes | El AFN de Thompson tiene un solo estado de aceptación y sin salidas; ≤ 2n estados; epsilon fuera del alfabeto; el AFD arranca en 0 y no tiene inalcanzables; los dos métodos de minimización coinciden; minimizar es idempotente |
+| 3 | Minimalidad | Por fuerza bruta: ningún par de estados del AFD mínimo es equivalente, y ninguno está muerto |
+| 4 | Casos límite | 20 expresiones válidas (escapes, mayúsculas, símbolos no alfanuméricos, `(a*)*`, `(a\|b)**`, epsilon anidado) y 17 inválidas que deben lanzar `ValueError` |
+| 5 | Estrés | Anidamiento de 25 niveles, unión de 12 ramas, explosión del AFD verificada contra el mínimo teórico 2ⁿ para n=1..7, y una cadena de 40 003 símbolos |
+| 6 | Coherencia | La cadena vacía, la e-closure del inicial, las etiquetas de trazabilidad, y los símbolos fuera del alfabeto |
+| 7 | Robustez | 40 000 cadenas de basura como expresión: ninguna debe lanzar nada distinto de `ValueError` |
+
+Cada corrida usa una semilla nueva y la imprime, así que si alguna vez falla se
+puede reproducir exactamente con `--semilla N`.
 
 ---
 
@@ -130,6 +152,10 @@ siempre coincidan en la respuesta y que ésta sea la esperada.
 | `()` | agrupación |
 | `ε` | epsilon (cadena vacía) |
 | `\` | escape, p. ej. `\*` es el símbolo literal `*` |
+
+Los espacios en blanco se ignoran dentro de la expresión, así que `a b` es lo
+mismo que `ab`. Para usar un espacio como símbolo del alfabeto hay que
+escaparlo: `a\ b`.
 
 **Símbolo designado para ε:** `ε` (U+03B5). Se eligió porque no es una letra ni
 un número del alfabeto de entrada, así que no hay riesgo de que colisione con un
@@ -213,6 +239,15 @@ Y para el visor:
   los estados inalcanzables y los muertos, y los bloques se numeran por BFS desde
   el inicial: una numeración canónica que hace comparables las salidas de los dos
   métodos.
+- **Dibujo:** las etiquetas de las aristas se escapan antes de pasarlas a
+  Graphviz, porque el módulo de Python entrecomilla pero no escapa la barra
+  invertida, y un símbolo `\` del alfabeto dejaba una cadena sin cerrar en el
+  DOT. Si aun así el render falla, se guarda el `.dot` y se imprime un aviso
+  explícito en vez de devolver la ruta en silencio.
+- **Topes del visor:** por encima de 80 estados no se dibuja el autómata y por
+  encima de 40 no se muestra la tabla de pares. El layout de Graphviz para un
+  AFD de 257 estados tarda casi un minuto, y la tabla tendría más de 32 000
+  celdas. Los autómatas se construyen igual; solo se omite la imagen.
 - **Trazabilidad:** el AFD por subconjuntos guarda a qué conjunto de estados del
   AFN corresponde cada estado, y el AFD minimizado guarda qué estados del AFD
   original quedaron fusionados en cada bloque. Ambos se imprimen y el primero se

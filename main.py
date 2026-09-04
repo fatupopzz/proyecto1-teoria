@@ -17,6 +17,7 @@ Uso:
 """
 
 import os
+import re
 import sys
 
 from src.shunting_yard import a_postfix, validar, EPSILON
@@ -127,13 +128,44 @@ def procesar(regex, cadena, indice=1, carpeta=CARPETA_SALIDA, verbose=True):
     return ac_afn, ac_afd, ac_min
 
 
+def limpiar_salida(carpeta=CARPETA_SALIDA):
+    """Borra las imagenes de corridas anteriores.
+
+    Los nombres solo dependen del indice de la expresion, asi que una corrida
+    con menos lineas dejaria mezcladas las imagenes de la anterior y pareceria
+    que se generaron ahora. Ver HALLAZGOS.md #7.
+    """
+    if not os.path.isdir(carpeta):
+        return 0
+    borrados = 0
+    for nombre in os.listdir(carpeta):
+        if re.fullmatch(r'\d+_(afn|afd|afd_min)(\.png|\.svg|\.dot)?', nombre):
+            os.remove(os.path.join(carpeta, nombre))
+            borrados += 1
+    return borrados
+
+
 def procesar_archivo(ruta, cadena):
     if not os.path.exists(ruta):
         print(f"Error: no se encontro el archivo '{ruta}'")
         sys.exit(1)
 
-    with open(ruta, encoding='utf-8') as f:
-        lineas = [ln.rstrip('\n') for ln in f]
+    if os.path.isdir(ruta):
+        print(f"Error: '{ruta}' es un directorio, no un archivo")
+        sys.exit(1)
+
+    try:
+        # utf-8-sig consume el BOM que agregan los editores de Windows.
+        # Con utf-8 a secas, el BOM entra al alfabeto como un simbolo mas
+        # y altera la primera expresion sin avisar. Ver HALLAZGOS.md #4.
+        with open(ruta, encoding='utf-8-sig') as f:
+            lineas = [ln.rstrip('\n').rstrip('\r') for ln in f]
+    except UnicodeDecodeError:
+        print(f"Error: '{ruta}' no es un archivo de texto legible (UTF-8)")
+        sys.exit(1)
+    except OSError as e:
+        print(f"Error: no se pudo leer '{ruta}': {e}")
+        sys.exit(1)
 
     # Cada linea trae una expresion regular. Opcionalmente puede traer tambien
     # su propia cadena w, separada por un tabulador: "regex<TAB>cadena".
@@ -144,7 +176,10 @@ def procesar_archivo(ruta, cadena):
             continue
         if '\t' in linea:
             regex, _, propia = linea.partition('\t')
-            expresiones.append((regex.strip(), propia.strip()))
+            propia = propia.strip()
+            # Un tabulador al final de la linea no significa "cadena vacia":
+            # significa que la linea no trae cadena. Ver HALLAZGOS.md #6.
+            expresiones.append((regex.strip(), propia if propia else None))
         else:
             expresiones.append((limpia, None))
 
@@ -152,15 +187,19 @@ def procesar_archivo(ruta, cadena):
         print(f"El archivo '{ruta}' no contiene expresiones regulares.")
         return
 
+    borrados = limpiar_salida()
     print(f"\nProcesando {len(expresiones)} expresiones de '{ruta}'")
-    print(f"Simbolo designado para epsilon: '{EPSILON}'\n")
+    print(f"Simbolo designado para epsilon: '{EPSILON}'")
+    if borrados:
+        print(f"Se borraron {borrados} imagenes de la corrida anterior")
+    print()
 
     for i, (regex, propia) in enumerate(expresiones, start=1):
         try:
             procesar(regex, propia if propia is not None else cadena, indice=i)
         except ValueError as e:
-            separador()
-            print(f"EXPRESION {i}: {regex}")
+            # procesar() ya imprimio el encabezado antes de que validar()
+            # lanzara, asi que aqui solo va el error. Ver HALLAZGOS.md M5.
             print(f"  [ERROR] {e}\n")
 
 

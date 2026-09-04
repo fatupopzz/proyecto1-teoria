@@ -26,13 +26,34 @@ from src.visualizacion import (grafo_afn, grafo_afd, a_svg, TEMA_WEB,
 
 CARPETA_SALIDA = 'output'
 
+# Dibujar un automata grande con Graphviz es carisimo: el layout de un AFD de
+# 257 estados toma casi un minuto, y el navegador se ahoga con la tabla de
+# pares. Por encima de este tope se devuelven los datos sin la imagen.
+# Ver HALLAZGOS.md #3.
+TOPE_DIBUJO = 80
+TOPE_TABLA = 40
+
 app = Flask(__name__)
+
+
+def _svg_seguro(constructor, n_estados):
+    """Devuelve (svg, aviso). No dibuja si el automata es demasiado grande."""
+    if n_estados > TOPE_DIBUJO:
+        return None, (f'{n_estados} estados: demasiados para dibujar. '
+                      f'El automata se construyo bien, solo se omite la imagen.')
+    try:
+        return a_svg(constructor()), None
+    except RuntimeError as e:
+        return None, str(e)
 
 
 def _empaquetar_afn(afn, cadena):
     pasos, aceptada = pasos_afn(afn, cadena)
+    svg, aviso = _svg_seguro(lambda: grafo_afn(afn, tema=TEMA_WEB),
+                             len(afn.estados))
     return {
-        'svg': a_svg(grafo_afn(afn, tema=TEMA_WEB)),
+        'svg': svg,
+        'aviso': aviso,
         'n_estados': len(afn.estados),
         'inicio': afn.inicio,
         'aceptacion': sorted(afn.aceptacion),
@@ -45,9 +66,13 @@ def _empaquetar_afn(afn, cadena):
 
 def _empaquetar_afd(afd, cadena, etiquetas_en_nodo=False):
     pasos, aceptada = pasos_afd(afd, cadena)
+    svg, aviso = _svg_seguro(
+        lambda: grafo_afd(afd, mostrar_etiquetas=etiquetas_en_nodo,
+                          tema=TEMA_WEB),
+        len(afd.estados))
     return {
-        'svg': a_svg(grafo_afd(afd, mostrar_etiquetas=etiquetas_en_nodo,
-                               tema=TEMA_WEB)),
+        'svg': svg,
+        'aviso': aviso,
         'n_estados': len(afd.estados),
         'inicio': afd.inicio,
         'aceptacion': sorted(afd.aceptacion),
@@ -66,8 +91,9 @@ def inicio():
 @app.route('/api/procesar', methods=['POST'])
 def procesar():
     datos = request.get_json(silent=True) or {}
-    regex = (datos.get('regex') or '').strip()
-    cadena = datos.get('cadena') or ''
+    # los campos pueden venir de un cliente hecho a mano: se fuerzan a texto
+    regex = str(datos.get('regex') or '').strip()
+    cadena = str(datos.get('cadena') or '')
 
     if not regex:
         return jsonify({'ok': False, 'error': 'Escribí una expresión regular.'})
@@ -85,21 +111,39 @@ def procesar():
 
     ajenos = sorted(set(cadena) - afn.alfabeto)
 
+    try:
+        automatas = {
+            'afn': _empaquetar_afn(afn, cadena),
+            'afd': _empaquetar_afd(afd, cadena, etiquetas_en_nodo=True),
+            'min': _empaquetar_afd(afd_min, cadena),
+        }
+    except Exception as e:  # noqa: BLE001
+        return jsonify({'ok': False, 'error': f'No se pudo dibujar: {e}'})
+
+    # La tabla de pares crece con el cuadrado de los estados: por encima del
+    # tope el navegador no puede con la cantidad de celdas.
+    if len(afd.estados) <= TOPE_TABLA:
+        minimizacion = {
+            'myhill': traza_myhill(afd),
+            'agrupacion': traza_agrupacion(afd),
+            'coinciden': coinciden,
+            'aviso': None,
+        }
+    else:
+        minimizacion = {
+            'myhill': None, 'agrupacion': None, 'coinciden': coinciden,
+            'aviso': f'El AFD tiene {len(afd.estados)} estados: la tabla '
+                     f'tendria {len(afd.estados) * (len(afd.estados) - 1) // 2} '
+                     f'pares, demasiados para mostrar.',
+        }
+
     return jsonify({
         'ok': True,
         'postfix': postfix,
         'cadena': cadena,
         'simbolos_ajenos': ajenos,
-        'automatas': {
-            'afn': _empaquetar_afn(afn, cadena),
-            'afd': _empaquetar_afd(afd, cadena, etiquetas_en_nodo=True),
-            'min': _empaquetar_afd(afd_min, cadena),
-        },
-        'minimizacion': {
-            'myhill': traza_myhill(afd),
-            'agrupacion': traza_agrupacion(afd),
-            'coinciden': coinciden,
-        },
+        'automatas': automatas,
+        'minimizacion': minimizacion,
     })
 
 

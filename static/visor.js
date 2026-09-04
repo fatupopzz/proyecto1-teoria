@@ -165,7 +165,18 @@ function pintarCinta() {
 /* ---------- grafo ---------- */
 
 function cargarGrafo() {
-  el.capa.innerHTML = datos.automatas[clave].svg;
+  const a = datos.automatas[clave];
+
+  if (!a.svg) {
+    // automata demasiado grande, o Graphviz no pudo dibujarlo
+    el.capa.innerHTML = '';
+    el.vacio.textContent = a.aviso || 'No se pudo dibujar este autómata.';
+    el.vacio.classList.remove('oculto');
+    indice = { nodos: new Map(), aristas: new Map() };
+    return;
+  }
+
+  el.capa.innerHTML = a.svg;
   el.vacio.classList.add('oculto');
   indexarSvg();
   marcarAceptacion();
@@ -229,7 +240,9 @@ let ronda = 0;
 let rondaTocando = null;
 
 function maxRonda() {
-  if (!datos || !datos.minimizacion.myhill) return 0;
+  if (!datos || !datos.minimizacion.myhill || !datos.minimizacion.agrupacion) {
+    return 0;
+  }
   return Math.max(datos.minimizacion.myhill.rondas,
                   datos.minimizacion.agrupacion.rondas);
 }
@@ -343,6 +356,19 @@ function dibujarBloques() {
 
 function pintarMinimizacion() {
   if (!datos) return;
+
+  if (datos.minimizacion.aviso) {
+    el.minTabla.innerHTML = `<p class="min-nota">${datos.minimizacion.aviso}</p>`;
+    el.minBloques.innerHTML = '';
+    el.minMotivo.textContent = '';
+    el.rondaContador.textContent = '';
+    el.minLeyenda.textContent = '';
+    el.rondaMenos.disabled = true;
+    el.rondaMas.disabled = true;
+    el.rondaPlay.disabled = true;
+    return;
+  }
+  el.rondaPlay.disabled = false;
   const tope = maxRonda();
   ronda = Math.max(0, Math.min(ronda, tope));
 
