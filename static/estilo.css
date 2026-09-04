@@ -418,6 +418,7 @@ input[type=text]:focus {
 }
 
 .lienzo.arrastrando { cursor: grabbing; }
+.lienzo.oculto { display: none; }
 
 .capa {
   position: absolute;
@@ -469,4 +470,143 @@ g.edge.recorrida text { fill: var(--vivo); font-weight: 700; }
 @media (max-width: 620px) {
   .lectura-estado { margin-left: 0; width: 100%; }
   .ayuda-zoom { display: none; }
+}
+
+/* ---------- panel de minimización ---------- */
+
+.panel-min {
+  border: 1px solid var(--linea);
+  border-top: none;
+  border-radius: 0 0 3px 3px;
+  background: rgba(11, 21, 32, .55);
+  padding: 1rem 1.1rem 1.3rem;
+}
+
+.panel-min.oculto { display: none; }
+
+.min-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--linea);
+  padding-bottom: .8rem;
+  margin-bottom: 1rem;
+}
+
+.min-control { display: flex; align-items: center; gap: .4rem; }
+
+.min-leyenda {
+  margin-left: auto;
+  font-size: .72rem;
+  color: var(--tenue);
+  letter-spacing: .04em;
+}
+
+.min-columnas {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr);
+  gap: 1.6rem;
+}
+
+.min-titulo {
+  margin: 0 0 .3rem;
+  font-size: .78rem;
+  font-weight: 800;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--tinta);
+}
+
+.min-nota {
+  margin: 0 0 .8rem;
+  font-size: .72rem;
+  line-height: 1.55;
+  color: var(--tenue);
+}
+
+.min-tabla { overflow-x: auto; }
+
+.min-tabla table { border-collapse: collapse; font-size: .74rem; }
+
+.min-tabla th {
+  padding: .25rem .4rem;
+  color: var(--tenue);
+  font-weight: 400;
+  text-align: center;
+}
+
+.min-tabla th.acepta { color: var(--acepta); }
+
+.min-tabla td {
+  width: 2rem;
+  height: 1.75rem;
+  border: 1px solid var(--linea);
+  text-align: center;
+  color: var(--fondo);
+  background: var(--panel);
+  transition: outline-color .1s;
+  outline: 2px solid transparent;
+  outline-offset: -2px;
+}
+
+.min-tabla td.hueco { border: none; background: none; }
+
+/* par equivalente: nunca se marcó */
+.min-tabla td.equivalente {
+  background: rgba(110, 231, 200, .18);
+  border-color: var(--vivo);
+  color: var(--vivo);
+}
+
+/* par marcado: el tono se aclara con la ronda */
+.min-tabla td.marcado { color: var(--fondo); font-weight: 600; cursor: help; }
+.min-tabla td.marcado:hover { outline-color: var(--tinta); }
+
+/* todavía no llega esa ronda */
+.min-tabla td.pendiente { background: var(--panel); color: transparent; }
+
+.min-motivo {
+  margin: .8rem 0 0;
+  min-height: 2.4rem;
+  font-size: .74rem;
+  line-height: 1.5;
+  color: var(--vivo);
+}
+
+.min-bloques { display: flex; flex-direction: column; gap: .5rem; }
+
+.min-ronda {
+  padding: .5rem .7rem;
+  border: 1px solid var(--linea);
+  border-radius: 3px;
+  background: var(--panel);
+  opacity: .35;
+}
+
+.min-ronda.visible { opacity: 1; }
+.min-ronda.actual { border-color: var(--vivo); }
+
+.min-ronda-titulo {
+  font-size: .7rem;
+  color: var(--tenue);
+  letter-spacing: .04em;
+  margin-bottom: .35rem;
+}
+
+.min-ronda.actual .min-ronda-titulo { color: var(--vivo); }
+
+.bloque {
+  display: inline-block;
+  margin: .12rem .25rem .12rem 0;
+  padding: .1rem .4rem;
+  border: 1px solid var(--linea);
+  border-radius: 2px;
+  font-size: .74rem;
+  color: var(--tinta);
+  background: var(--panel-alto);
+}
+
+@media (max-width: 860px) {
+  .min-columnas { grid-template-columns: minmax(0, 1fr); gap: 1.4rem; }
 }

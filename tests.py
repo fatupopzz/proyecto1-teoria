@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Pruebas de validacion del pipeline completo.
 
-Verifica que el AFN, el AFD y el AFD minimizado coincidan siempre en la
-respuesta, y que esa respuesta sea la esperada.
+Verifica que el AFN, el AFD y el AFD minimizado (por los dos metodos de
+minimizacion) coincidan siempre en la respuesta, y que esa respuesta sea la
+esperada. Tambien comprueba que agrupacion y Myhill-Nerode produzcan
+exactamente el mismo AFD minimo.
 
 Uso: python tests.py
 """
@@ -10,7 +12,7 @@ Uso: python tests.py
 from src.shunting_yard import a_postfix
 from src.thompson import construir_afn
 from src.subconjuntos import construir_afd
-from src.minimizacion import minimizar
+from src.minimizacion import minimizar, verificar_equivalencia
 from src.simulacion import simular_afn, simular_afd
 
 # (regex, cadena, resultado esperado)
@@ -54,13 +56,14 @@ def correr():
         tokens, postfix = a_postfix(regex)
         afn = construir_afn(tokens)
         afd = construir_afd(afn)
-        afd_min = minimizar(afd)
+        metodos_ok, afd_min, afd_myhill = verificar_equivalencia(afd)
 
         r_afn, _ = simular_afn(afn, cadena)
         r_afd, _ = simular_afd(afd, cadena)
         r_min, _ = simular_afd(afd_min, cadena)
+        r_myhill, _ = simular_afd(afd_myhill, cadena)
 
-        coinciden = r_afn == r_afd == r_min
+        coinciden = r_afn == r_afd == r_min == r_myhill and metodos_ok
         correcto = coinciden and r_afn == esperado
         marca = "OK  " if correcto else "FALLA"
 
@@ -68,7 +71,8 @@ def correr():
             fallos += 1
 
         print(f"{marca} [{i:02d}] r = {regex:<22} w = {cadena or '(vacia)':<10} "
-              f"AFN={r_afn} AFD={r_afd} MIN={r_min} esperado={esperado}"
+              f"AFN={r_afn} AFD={r_afd} MIN={r_min} MYHILL={r_myhill} "
+              f"esperado={esperado}"
               f"   postfix: {postfix}")
 
     print("\n" + "-" * 60)

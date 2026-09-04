@@ -16,9 +16,17 @@ const el = {
   archivo: $('archivo'), nombreArchivo: $('nombreArchivo'),
   lista: $('lista'), listaZona: $('listaZona'),
   generarPng: $('generarPng'), quitarArchivo: $('quitarArchivo'),
+  panelMin: $('panelMin'), minTabla: $('minTabla'), minBloques: $('minBloques'),
+  minMotivo: $('minMotivo'), minLeyenda: $('minLeyenda'),
+  rondaMenos: $('rondaMenos'), rondaMas: $('rondaMas'),
+  rondaPlay: $('rondaPlay'), rondaContador: $('rondaContador'),
 };
 
 const NOMBRES = { afn: 'AFN', afd: 'AFD', min: 'AFD mín' };
+
+/* tonos por ronda: la ronda 0 es la más oscura y aclara hacia afuera */
+const TONOS = ['#8c3d55', '#b04d6a', '#d4607f', '#e8859c', '#f0a8b8', '#f5c6d1'];
+function tono(r) { return TONOS[Math.min(r, TONOS.length - 1)]; }
 
 let datos = null;       // respuesta del servidor
 let clave = 'afn';      // pestaña activa
@@ -73,9 +81,15 @@ async function pedir() {
   el.postfix.textContent = datos.postfix;
   dibujarVeredictos();
   actualizarConteos();
-  cargarGrafo();
   dibujarCinta();
-  aplicarPaso();
+
+  if (clave === 'tabla') {
+    ronda = maxRonda();
+    pintarMinimizacion();
+  } else {
+    cargarGrafo();
+    aplicarPaso();
+  }
 }
 
 function mostrarAviso(texto, esNota = false) {
@@ -208,6 +222,174 @@ function aplicarPaso() {
     el.lecturaEstado.style.color = 'var(--vivo)';
   }
 }
+
+/* ---------- panel de minimización ---------- */
+
+let ronda = 0;
+let rondaTocando = null;
+
+function maxRonda() {
+  if (!datos || !datos.minimizacion.myhill) return 0;
+  return Math.max(datos.minimizacion.myhill.rondas,
+                  datos.minimizacion.agrupacion.rondas);
+}
+
+function dibujarTabla() {
+  const m = datos.minimizacion.myhill;
+  el.minTabla.innerHTML = '';
+  if (!m) {
+    el.minTabla.innerHTML = '<p class="min-nota">El alfabeto está vacío: ' +
+                            'no hay pares que comparar.</p>';
+    return;
+  }
+
+  // índice rápido de cada par
+  const celdas = new Map();
+  for (const c of m.celdas) celdas.set(`${c.p}|${c.q}`, c);
+  const equivalentes = new Set(m.equivalentes.map((e) => `${e.p}|${e.q}`));
+
+  const filas = m.estados.slice(1);        // se omite el primero como fila
+  const columnas = m.estados.slice(0, -1); // y el último como columna
+  const acepta = new Set(m.aceptacion);
+
+  const tabla = document.createElement('table');
+
+  const encabezado = document.createElement('tr');
+  encabezado.appendChild(document.createElement('th'));
+  for (const c of columnas) {
+    const th = document.createElement('th');
+    th.textContent = c;
+    if (acepta.has(c)) th.classList.add('acepta');
+    encabezado.appendChild(th);
+  }
+  tabla.appendChild(encabezado);
+
+  for (const f of filas) {
+    const tr = document.createElement('tr');
+    const th = document.createElement('th');
+    th.textContent = f;
+    if (acepta.has(f)) th.classList.add('acepta');
+    tr.appendChild(th);
+
+    for (const c of columnas) {
+      const td = document.createElement('td');
+      const iF = m.estados.indexOf(f), iC = m.estados.indexOf(c);
+
+      if (iC >= iF) {
+        td.className = 'hueco';           // solo el triángulo inferior
+      } else {
+        const llave = `${c}|${f}`;
+        const celda = celdas.get(llave);
+        if (celda) {
+          if (celda.ronda <= ronda) {
+            td.className = 'marcado';
+            td.textContent = celda.ronda;
+            td.style.backgroundColor = tono(celda.ronda);
+            td.title = `{${c}, ${f}}: ${celda.motivo}`;
+            td.onmouseenter = () => {
+              el.minMotivo.textContent = `{${c}, ${f}} se marcó en la ronda ` +
+                                         `${celda.ronda}: ${celda.motivo}`;
+            };
+          } else {
+            td.className = 'pendiente';
+          }
+        } else if (equivalentes.has(llave)) {
+          td.className = ronda >= m.rondas ? 'equivalente' : 'pendiente';
+          if (ronda >= m.rondas) {
+            td.textContent = '≡';
+            td.onmouseenter = () => {
+              el.minMotivo.textContent =
+                `{${c}, ${f}} nunca se marcó: son equivalentes, ` +
+                `ninguna cadena los distingue.`;
+            };
+          }
+        } else {
+          td.className = 'pendiente';
+        }
+      }
+      tr.appendChild(td);
+    }
+    tabla.appendChild(tr);
+  }
+
+  el.minTabla.appendChild(tabla);
+}
+
+function dibujarBloques() {
+  const a = datos.minimizacion.agrupacion;
+  el.minBloques.innerHTML = '';
+  if (!a) return;
+
+  a.historial.forEach((paso, i) => {
+    const caja = document.createElement('div');
+    caja.className = 'min-ronda';
+    if (i <= ronda) caja.classList.add('visible');
+    if (i === ronda) caja.classList.add('actual');
+
+    const titulo = document.createElement('div');
+    titulo.className = 'min-ronda-titulo';
+    titulo.textContent = paso.titulo;
+    caja.appendChild(titulo);
+
+    for (const bloque of paso.bloques) {
+      const span = document.createElement('span');
+      span.className = 'bloque';
+      span.textContent = '{' + bloque.join(', ') + '}';
+      caja.appendChild(span);
+    }
+    el.minBloques.appendChild(caja);
+  });
+}
+
+function pintarMinimizacion() {
+  if (!datos) return;
+  const tope = maxRonda();
+  ronda = Math.max(0, Math.min(ronda, tope));
+
+  dibujarTabla();
+  dibujarBloques();
+
+  el.rondaContador.textContent = `ronda ${ronda} / ${tope}`;
+  el.rondaMenos.disabled = ronda === 0;
+  el.rondaMas.disabled = ronda >= tope;
+
+  const m = datos.minimizacion.myhill;
+  if (m) {
+    const eq = m.equivalentes.length;
+    el.minLeyenda.textContent =
+      `${m.n_pares} pares · ${m.celdas.length} distinguibles · ` +
+      `${eq} equivalentes` +
+      (datos.minimizacion.coinciden
+        ? ' · los dos métodos coinciden'
+        : ' · ¡los métodos NO coinciden!');
+  }
+}
+
+function irARonda(n) {
+  pararRondas();
+  ronda = n;
+  pintarMinimizacion();
+}
+
+function pararRondas() {
+  if (rondaTocando) { clearInterval(rondaTocando); rondaTocando = null; }
+  el.rondaPlay.textContent = '▶ llenar tabla';
+}
+
+function alternarRondas() {
+  if (rondaTocando) { pararRondas(); return; }
+  if (ronda >= maxRonda()) { ronda = 0; pintarMinimizacion(); }
+  el.rondaPlay.textContent = '❚❚ pausa';
+  rondaTocando = setInterval(() => {
+    if (ronda >= maxRonda()) { pararRondas(); return; }
+    ronda += 1;
+    pintarMinimizacion();
+  }, 1100);
+}
+
+el.rondaMenos.onclick = () => irARonda(ronda - 1);
+el.rondaMas.onclick = () => irARonda(ronda + 1);
+el.rondaPlay.onclick = alternarRondas;
 
 /* ---------- transporte ---------- */
 
@@ -454,6 +636,18 @@ el.pestanas.addEventListener('click', (e) => {
   }
   clave = boton.dataset.clave;
   detener();
+  pararRondas();
+
+  if (clave === 'tabla') {
+    el.lienzo.classList.add('oculto');
+    el.panelMin.classList.remove('oculto');
+    ronda = maxRonda();          // se abre con la tabla ya completa
+    pintarMinimizacion();
+    return;
+  }
+
+  el.panelMin.classList.add('oculto');
+  el.lienzo.classList.remove('oculto');
   paso = Math.min(paso, pasosActuales().length - 1);
   cargarGrafo();
   aplicarPaso();

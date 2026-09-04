@@ -72,12 +72,44 @@
     <button class="pestana activa" data-clave="afn">AFN <em id="n-afn"></em></button>
     <button class="pestana" data-clave="afd">AFD <em id="n-afd"></em></button>
     <button class="pestana" data-clave="min">AFD mínimo <em id="n-min"></em></button>
+    <button class="pestana" data-clave="tabla">minimización</button>
     <span class="ayuda-zoom">rueda para zoom · arrastrá para mover</span>
     <button class="boton boton-fino" id="encajar">encajar</button>
   </nav>
   <div class="lienzo" id="lienzo">
     <div class="capa" id="capa"></div>
     <p class="vacio" id="vacio">Escribí una expresión regular arriba.</p>
+  </div>
+
+  <div class="panel-min oculto" id="panelMin">
+    <div class="min-cabecera">
+      <div class="min-control">
+        <button class="boton" id="rondaMenos" title="Ronda anterior">◀</button>
+        <button class="boton boton-play" id="rondaPlay">▶ llenar tabla</button>
+        <button class="boton" id="rondaMas" title="Ronda siguiente">▶</button>
+        <span class="contador" id="rondaContador">ronda 0</span>
+      </div>
+      <span class="min-leyenda" id="minLeyenda"></span>
+    </div>
+
+    <div class="min-columnas">
+      <div class="min-tabla-zona">
+        <h3 class="min-titulo">Tabla de pares · Myhill-Nerode</h3>
+        <p class="min-nota">Una celda marcada significa que alguna cadena
+          distingue a esos dos estados. El número es la ronda en que se marcó.
+          Las celdas que quedan vacías son pares equivalentes.</p>
+        <div class="min-tabla" id="minTabla"></div>
+        <p class="min-motivo" id="minMotivo">Pasá el mouse por una celda marcada
+          para ver por qué se marcó.</p>
+      </div>
+
+      <div class="min-bloques-zona">
+        <h3 class="min-titulo">Refinamiento de particiones · agrupación</h3>
+        <p class="min-nota">El otro método, en paralelo: parte de dos bloques y
+          los va separando hasta que ninguna pasada cambie nada.</p>
+        <div class="min-bloques" id="minBloques"></div>
+      </div>
+    </div>
   </div>
 </section>
 

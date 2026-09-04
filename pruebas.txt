@@ -1,0 +1,50 @@
+# Banco de expresiones para probar el Proyecto 1
+# Una expresion regular por linea. Las lineas con # se ignoran.
+# Simbolo de epsilon: ε
+
+# --- las del enunciado ---
+(b|b)*abb(a|b)*
+(a*|b*)c
+0?(1?)?0*
+
+# --- clasicas del libro (Aho / Hopcroft) ---
+(a|b)*abb
+letter(letter|digit)*
+(a|b)*a(a|b)(a|b)
+(0|1)*1(0|1)(0|1)
+
+# --- casos base y limites ---
+a
+ε
+a*
+a+
+a?
+(a)
+((((a))))
+
+# --- epsilon dentro de la expresion ---
+(a|ε)b(a|b)*
+(ε|a)*b
+aε*b
+
+# --- operadores anidados ---
+(a*)*
+(a|b)**
+((a|b)*ab)+
+(ab|ba)*
+(a+b?)*c
+
+# --- caracteres escapados (simbolos literales) ---
+a\*b
+\(a\|b\)
+a\\b
+
+# --- explota el AFD: minimo = 2^n estados ---
+(a|b)*a(a|b)(a|b)(a|b)
+
+# --- lenguajes con estructura reconocible ---
+(0|1)*00
+b*ab*ab*
+(aa)*
+(a|b)(a|b)(a|b)
+x(y|z)*w

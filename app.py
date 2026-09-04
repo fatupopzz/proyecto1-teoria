@@ -18,8 +18,9 @@ from flask import Flask, jsonify, render_template, request
 from src.shunting_yard import a_postfix, validar, EPSILON
 from src.thompson import construir_afn
 from src.subconjuntos import construir_afd
-from src.minimizacion import minimizar
+from src.minimizacion import minimizar, verificar_equivalencia
 from src.pasos import pasos_afn, pasos_afd
+from src.traza_min import traza_myhill, traza_agrupacion
 from src.visualizacion import (grafo_afn, grafo_afd, a_svg, TEMA_WEB,
                                graficar_afn, graficar_afd)
 
@@ -76,7 +77,7 @@ def procesar():
         tokens, postfix = a_postfix(regex)
         afn = construir_afn(tokens)
         afd = construir_afd(afn)
-        afd_min = minimizar(afd)
+        coinciden, afd_min, _ = verificar_equivalencia(afd)
     except ValueError as e:
         return jsonify({'ok': False, 'error': str(e)})
     except Exception as e:  # noqa: BLE001
@@ -93,6 +94,11 @@ def procesar():
             'afn': _empaquetar_afn(afn, cadena),
             'afd': _empaquetar_afd(afd, cadena, etiquetas_en_nodo=True),
             'min': _empaquetar_afd(afd_min, cadena),
+        },
+        'minimizacion': {
+            'myhill': traza_myhill(afd),
+            'agrupacion': traza_agrupacion(afd),
+            'coinciden': coinciden,
         },
     })
 

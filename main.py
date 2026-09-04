@@ -22,7 +22,7 @@ import sys
 from src.shunting_yard import a_postfix, validar, EPSILON
 from src.thompson import construir_afn
 from src.subconjuntos import construir_afd
-from src.minimizacion import minimizar
+from src.minimizacion import minimizar, verificar_equivalencia
 from src.simulacion import (simular_afn, simular_afd,
                             formato_traza_afn, formato_traza_afd)
 from src.visualizacion import graficar_afn, graficar_afd, GRAPHVIZ_DISPONIBLE
@@ -36,7 +36,8 @@ def separador(caracter='='):
 
 
 def respuesta(aceptada):
-    return "si" if aceptada else "no"
+    """El enunciado pide un "si" en caso de aceptacion y un "no" si no."""
+    return "sí" if aceptada else "no"
 
 
 def procesar(regex, cadena, indice=1, carpeta=CARPETA_SALIDA, verbose=True):
@@ -66,10 +67,18 @@ def procesar(regex, cadena, indice=1, carpeta=CARPETA_SALIDA, verbose=True):
     if verbose:
         print(afd)
 
-    # 4. Minimizacion
-    afd_min = minimizar(afd)
+    # 4. Minimizacion (los dos metodos deben dar el mismo AFD minimo)
+    coinciden, afd_min, afd_min_myhill = verificar_equivalencia(afd)
     print(f"\n[4] AFD minimizado: {len(afd.estados)} -> "
           f"{len(afd_min.estados)} estados")
+    print(f"    Agrupacion (refinamiento de particiones): "
+          f"{len(afd_min.estados)} estados")
+    print(f"    Myhill-Nerode (tabla de pares)          : "
+          f"{len(afd_min_myhill.estados)} estados")
+    if coinciden:
+        print("    Los dos metodos producen el mismo AFD minimo. [OK]")
+    else:
+        print("    [ADVERTENCIA] Los dos metodos NO coinciden.")
     if verbose:
         print(afd_min)
 
@@ -92,7 +101,7 @@ def procesar(regex, cadena, indice=1, carpeta=CARPETA_SALIDA, verbose=True):
     if not (ac_afn == ac_afd == ac_min):
         print("\n    [ADVERTENCIA] Los automatas no coinciden en el resultado.")
 
-    print(f"\n    >>> w = '{cadena}' {'SI' if ac_afn else 'NO'} pertenece a L(r)")
+    print(f"\n    >>> w = '{cadena}' {'SÍ' if ac_afn else 'NO'} pertenece a L(r)")
 
     # Imagenes
     if not GRAPHVIZ_DISPONIBLE:
@@ -124,9 +133,20 @@ def procesar_archivo(ruta, cadena):
         sys.exit(1)
 
     with open(ruta, encoding='utf-8') as f:
-        lineas = [ln.strip() for ln in f]
+        lineas = [ln.rstrip('\n') for ln in f]
 
-    expresiones = [ln for ln in lineas if ln and not ln.startswith('#')]
+    # Cada linea trae una expresion regular. Opcionalmente puede traer tambien
+    # su propia cadena w, separada por un tabulador: "regex<TAB>cadena".
+    expresiones = []
+    for linea in lineas:
+        limpia = linea.strip()
+        if not limpia or limpia.startswith('#'):
+            continue
+        if '\t' in linea:
+            regex, _, propia = linea.partition('\t')
+            expresiones.append((regex.strip(), propia.strip()))
+        else:
+            expresiones.append((limpia, None))
 
     if not expresiones:
         print(f"El archivo '{ruta}' no contiene expresiones regulares.")
@@ -135,9 +155,9 @@ def procesar_archivo(ruta, cadena):
     print(f"\nProcesando {len(expresiones)} expresiones de '{ruta}'")
     print(f"Simbolo designado para epsilon: '{EPSILON}'\n")
 
-    for i, regex in enumerate(expresiones, start=1):
+    for i, (regex, propia) in enumerate(expresiones, start=1):
         try:
-            procesar(regex, cadena, indice=i)
+            procesar(regex, propia if propia is not None else cadena, indice=i)
         except ValueError as e:
             separador()
             print(f"EXPRESION {i}: {regex}")
