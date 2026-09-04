@@ -9,8 +9,10 @@ Todo lo de aquí se reproduce con:
 python pruebas_adversarias.py --semilla 20250904
 ```
 
-La corrida completa tarda unos 40 segundos y reporta 19 fallas, que son los 9
-hallazgos numerados más abajo (varios se detectan en más de un caso). Cada bloque
+La corrida completa tarda unos 30 segundos. Sobre el commit `8cdf320` reporta
+7 fallas: 2 del hallazgo 5 (sin arreglar, es complejidad) y 5 de A1 (huecos
+nuevos que se detectaron al auditar los arreglos). Antes de los arreglos
+reportaba 19. Cada bloque
 se puede correr suelto con `--solo <bloque>` y escalar con `--iteraciones N`;
 la semilla siempre se imprime, y pasarla de vuelta reproduce exactamente la misma
 corrida.
@@ -28,7 +30,82 @@ semillas distintas, más los otros bloques a escala):
 
 ---
 
-## Resumen ejecutivo
+## Estado tras los arreglos (verificado)
+
+Se reviso el commit `8cdf320`. **8 de los 9 hallazgos estan arreglados y
+verificados**; la suite paso de 19 fallas a 2, y las 2 que quedan son el
+hallazgo 5, que es de complejidad algoritmica, no un error.
+
+| # | Estado | Comprobacion |
+|---|---|---|
+| 1 | Arreglado | `_escapar()` duplica la barra invertida. Probado con 14 combinaciones (`\\`, `a\\`, `\\\\`, `\\|a`, `\\+\\`, `\"` mezclado con `\\`): PNG y SVG validos en todas, tambien en el titulo |
+| 2 | Arreglado | `a_svg()` lanza `RuntimeError`, `_svg_seguro()` lo atrapa y el visor muestra el aviso en vez de un 500 |
+| 3 | Arreglado | `TOPE_DIBUJO=80` y `TOPE_TABLA=40`. El JS maneja `svg: null` y `minimizacion.aviso`; los 10 IDs que toca la rama nueva existen en `index.html` |
+| 4 | Arreglado | `utf-8-sig`. Probado con BOM solo y con BOM+CRLF+comentarios: alfabeto `['a','b']`, 6 estados |
+| 5 | **Sin tocar** | `src/minimizacion.py` no cambio. Sigue: 301 estados 0.06s vs 1.54s; 2049 estados 0.02s vs 3.95s |
+| 6 | Arreglado | `regex<TAB>cadena` respeta la cadena propia; `regex<TAB>` vuelve a usar la `w` del CLI |
+| 7 | Arreglado | `limpiar_salida()`. El patron borra `01_afn.png`, `01_afd_min.png`, `25_afn` (sin extension) y `.dot`, y conserva `mio.png`, `01_afd_minimo.png`, `grafico_afn.png`, `.DS_Store` |
+| 8 | Arreglado | El docstring de `shunting_yard.py` ahora dice `'e' griega minuscula, U+03B5` |
+| 9 | Arreglado | Directorio y binario dan mensaje y `exit 1` |
+
+Los menores M1 a M6 tambien quedaron cubiertos (`str()` en los campos del JSON,
+el `[ERROR]` sin encabezado duplicado, los espacios documentados en el README,
+la guardia de `maxRonda()`). De paso se arreglo algo que no estaba en el
+reporte: en `grafo_afn` el color de las aristas epsilon se decidia con
+`etiqueta == EPSILON`, que fallaba cuando la arista agrupaba varios simbolos;
+ahora usa `unicos == [EPSILON]`.
+
+**Nada de teoria se rompio con los cambios.** Barrido posterior a los arreglos:
+18 000 expresiones y 9 767 340 comparaciones contra `re.fullmatch`, mas 2 000
+expresiones de invariantes, 4 860 pares algebraicos y 300 000 cadenas de
+basura: cero hallazgos. `tests.py` sigue en 30/30 y `pruebas_exhaustivas.py` en
+6 602 verificaciones.
+
+### Lo que sigue abierto
+
+**A1. JSON valido pero que no es un objeto: HTTP 500 en los tres endpoints.**
+
+```bash
+curl -X POST -H 'Content-Type: application/json' -d '[1,2]' localhost:5000/api/procesar
+```
+
+`AttributeError: 'list' object has no attribute 'get'`. Tambien con `"hola"` y
+con `5`, y lo mismo en `/api/lote` y `/api/imagenes`. Causa:
+`request.get_json(silent=True) or {}` en `app.py:93`, `:157` y `:192`. El
+`or {}` solo cubre `None`; una lista o un texto no vacios son *truthy*, asi que
+el `.get()` de la linea siguiente es el que explota. Se arregla comprobando el
+tipo: `if not isinstance(datos, dict): datos = {}`.
+
+Gravedad baja: solo se alcanza con un cliente hecho a mano, no desde el visor.
+Ya esta cubierto en `pruebas_adversarias.py`, bloque `web`.
+
+**A2. `traducir()` de `pruebas_exhaustivas.py` es un oraculo que puede mentir.**
+
+`pruebas_exhaustivas.py:74` hace `regex.replace(EPSILON, '')`. Borrar epsilon no
+es lo mismo que reemplazarlo por la cadena vacia cuando lleva un operador
+detras:
+
+| expresion | traducida | problema |
+|---|---|---|
+| `aε*b` | `a*b` | el lenguaje pasa de `{ab}` a `a*b`: acepta `aaab` |
+| `ε*` | `*` | `re.error: nothing to repeat` |
+| `ε?` | `?` | `re.error: nothing to repeat` |
+
+Hoy no falla, pero por accidente: `generar_regex` siempre envuelve los unarios
+en parentesis (`f'({sub()})*'`), asi que epsilon bajo estrella sale como `(ε)*`
+y se traduce a `()*`, que si es correcto. Si alguien quita esos parentesis o
+agrega un caso a mano, el oraculo empieza a mentir **en silencio**, que es
+peor que fallar.
+
+Arreglo de una linea: `regex.replace(EPSILON, '(?:)')`. `(?:)` es un grupo no
+capturador vacio, es un atomo valido y admite `*`, `+` y `?` detras. Es lo que
+usa `pruebas_adversarias.py`.
+
+No lo toque porque `pruebas_exhaustivas.py` no es mio. Si me decis, lo cambio.
+
+---
+
+## Resumen ejecutivo (auditoria original)
 
 **El núcleo algorítmico está limpio.** No encontré ni un solo caso en el que el
 AFN, el AFD o cualquiera de los dos AFDs mínimos discrepen de `re.fullmatch` de

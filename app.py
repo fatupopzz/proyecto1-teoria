@@ -36,6 +36,17 @@ TOPE_TABLA = 40
 app = Flask(__name__)
 
 
+def _cuerpo():
+    """Devuelve el JSON del pedido como diccionario.
+
+    `get_json(silent=True) or {}` solo cubre el caso None: un JSON valido que
+    sea lista o texto es truthy y despues revienta en el `.get()`.
+    Ver HALLAZGOS.md A1.
+    """
+    datos = request.get_json(silent=True)
+    return datos if isinstance(datos, dict) else {}
+
+
 def _svg_seguro(constructor, n_estados):
     """Devuelve (svg, aviso). No dibuja si el automata es demasiado grande."""
     if n_estados > TOPE_DIBUJO:
@@ -90,7 +101,7 @@ def inicio():
 
 @app.route('/api/procesar', methods=['POST'])
 def procesar():
-    datos = request.get_json(silent=True) or {}
+    datos = _cuerpo()
     # los campos pueden venir de un cliente hecho a mano: se fuerzan a texto
     regex = str(datos.get('regex') or '').strip()
     cadena = str(datos.get('cadena') or '')
@@ -154,7 +165,7 @@ def lote():
     Devuelve solo el veredicto y los tamanos: sin SVG, para que sea rapido
     aunque el archivo traiga muchas lineas.
     """
-    datos = request.get_json(silent=True) or {}
+    datos = _cuerpo()
     expresiones = datos.get('expresiones') or []
     cadena = datos.get('cadena') or ''
 
@@ -189,7 +200,7 @@ def lote():
 @app.route('/api/imagenes', methods=['POST'])
 def imagenes():
     """Genera los PNG de todas las expresiones en la carpeta output/."""
-    datos = request.get_json(silent=True) or {}
+    datos = _cuerpo()
     expresiones = datos.get('expresiones') or []
 
     carpeta = os.path.abspath(CARPETA_SALIDA)

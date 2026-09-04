@@ -912,6 +912,21 @@ def bloque_web(rep):
          'expresiones como texto en vez de lista'),
         ('/api/imagenes', {'payload': {'expresiones': []}},
          'imagenes con lista vacia'),
+        # JSON sintacticamente valido pero que no es un objeto. `or {}` no
+        # lo cubre porque una lista o un texto no vacios son truthy, asi que
+        # el .get() de la linea siguiente es el que explota.
+        ('/api/procesar', {'crudo': '[1, 2]'},
+         'cuerpo JSON que es una lista'),
+        ('/api/procesar', {'crudo': '"hola"'},
+         'cuerpo JSON que es un texto'),
+        ('/api/procesar', {'crudo': '5'},
+         'cuerpo JSON que es un numero'),
+        ('/api/lote', {'crudo': '[1, 2]'},
+         'cuerpo JSON que es una lista'),
+        ('/api/imagenes', {'crudo': '[1, 2]'},
+         'cuerpo JSON que es una lista'),
+        ('/api/lote', {'payload': {'expresiones': {'x': 'a'}}},
+         'expresiones como objeto en vez de lista'),
     ]
 
     for url, kw, descripcion in casos:

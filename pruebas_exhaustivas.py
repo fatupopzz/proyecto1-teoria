@@ -57,21 +57,27 @@ def generar_regex(profundidad=3, alfabeto=ALFABETO, rnd=random):
         return f'({sub()}|{sub()})'
     if forma == 'concat':
         return f'{sub()}{sub()}' if rnd.random() < .5 else f'({sub()}{sub()})'
-    if forma == 'kleene':
-        return f'({sub()})*'
-    if forma == 'positiva':
-        return f'({sub()})+'
-    return f'({sub()})?'
+    # Los unarios se parentizan casi siempre, pero a veces no: si el operando
+    # es un solo caracter no hace falta, y sin parentesis se ejercita el caso
+    # `ε*`, que es justo el que rompia la traduccion del oraculo.
+    operador = {'kleene': '*', 'positiva': '+', 'opcional': '?'}[forma]
+    interno = sub()
+    if len(interno) == 1 and rnd.random() < .4:
+        return f'{interno}{operador}'
+    return f'({interno}){operador}'
 
 
 def traducir(regex):
     """Traduce nuestra sintaxis a la del modulo `re` de Python.
 
-    La unica diferencia relevante es epsilon: nosotros lo escribimos con un
-    simbolo, Python lo representa como la cadena vacia. Los operadores
-    |, *, +, ?, () coinciden.
+    La unica diferencia relevante es epsilon. Se emite como `(?:)`, un grupo
+    vacio que no captura, y NO como la cadena vacia: borrarlo sin mas rompe
+    la traduccion cuando lleva un operador detras. Con `replace(EPSILON, '')`,
+    `aε*b` se convierte en `a*b`, que acepta `aaab` cuando el lenguaje real
+    es `{ab}`, y `ε*` da directamente `re.error: nothing to repeat`.
+    El oraculo mentiria en silencio, que es peor que fallar.
     """
-    return regex.replace(EPSILON, '')
+    return regex.replace(EPSILON, '(?:)')
 
 
 def cadenas_hasta(n, alfabeto=ALFABETO):
