@@ -33,6 +33,13 @@ CARPETA_SALIDA = 'output'
 TOPE_DIBUJO = 80
 TOPE_TABLA = 40
 
+# La tabla de pares tiene C(n,2) celdas por definicion, asi que el metodo de
+# Myhill-Nerode es cuadratico por mas eficiente que sea su implementacion: con
+# 2049 estados son 2 millones de pares y 2 s. Por encima de este tope se
+# minimiza solo por agrupacion (que es O(n log n)) y no se comparan los dos
+# metodos, para que el visor siga respondiendo al instante. Ver HALLAZGOS.md #5.
+TOPE_COMPARAR = 600
+
 app = Flask(__name__)
 
 
@@ -114,7 +121,12 @@ def procesar():
         tokens, postfix = a_postfix(regex)
         afn = construir_afn(tokens)
         afd = construir_afd(afn)
-        coinciden, afd_min, _ = verificar_equivalencia(afd)
+        if len(afd.estados) <= TOPE_COMPARAR:
+            coinciden, afd_min, _ = verificar_equivalencia(afd)
+        else:
+            afd_min = minimizar(afd)
+            coinciden = None      # no se comprobo: null, que no es lo mismo
+                                  # que False. El visor los distingue.
     except ValueError as e:
         return jsonify({'ok': False, 'error': str(e)})
     except Exception as e:  # noqa: BLE001
@@ -141,11 +153,15 @@ def procesar():
             'aviso': None,
         }
     else:
+        pares = len(afd.estados) * (len(afd.estados) - 1) // 2
+        aviso = (f'El AFD tiene {len(afd.estados)} estados: la tabla tendria '
+                 f'{pares} pares, demasiados para mostrar.')
+        if coinciden is None:
+            aviso += (' Por el mismo motivo se minimizo solo por agrupacion, '
+                      'sin comparar los dos metodos.')
         minimizacion = {
             'myhill': None, 'agrupacion': None, 'coinciden': coinciden,
-            'aviso': f'El AFD tiene {len(afd.estados)} estados: la tabla '
-                     f'tendria {len(afd.estados) * (len(afd.estados) - 1) // 2} '
-                     f'pares, demasiados para mostrar.',
+            'aviso': aviso,
         }
 
     return jsonify({

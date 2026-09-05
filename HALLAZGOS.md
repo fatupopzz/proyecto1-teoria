@@ -9,13 +9,10 @@ Todo lo de aquí se reproduce con:
 python pruebas_adversarias.py --semilla 20250904
 ```
 
-La corrida completa tarda unos 30 segundos. Sobre el commit `8cdf320` reporta
-7 fallas: 2 del hallazgo 5 (sin arreglar, es complejidad) y 5 de A1 (huecos
-nuevos que se detectaron al auditar los arreglos). Antes de los arreglos
-reportaba 19. Cada bloque
-se puede correr suelto con `--solo <bloque>` y escalar con `--iteraciones N`;
-la semilla siempre se imprime, y pasarla de vuelta reproduce exactamente la misma
-corrida.
+La corrida completa tarda unos 17 segundos y **reporta 0 hallazgos**. Cada
+bloque se puede correr suelto con `--solo <bloque>` y escalar con
+`--iteraciones N`; la semilla siempre se imprime, y pasarla de vuelta reproduce
+exactamente la misma corrida.
 
 **Cifras del barrido grande** (`--solo oraculo --iteraciones 6000` con cuatro
 semillas distintas, más los otros bloques a escala):
@@ -30,78 +27,150 @@ semillas distintas, más los otros bloques a escala):
 
 ---
 
-## Estado tras los arreglos (verificado)
+## Estado tras los arreglos (verificado sobre `f34e83a`)
 
-Se reviso el commit `8cdf320`. **8 de los 9 hallazgos estan arreglados y
-verificados**; la suite paso de 19 fallas a 2, y las 2 que quedan son el
-hallazgo 5, que es de complejidad algoritmica, no un error.
+**Los 9 hallazgos, los 6 menores y los dos huecos A1 y A2 estan arreglados y
+verificados.** La suite paso de 19 fallas a 0.
 
 | # | Estado | Comprobacion |
 |---|---|---|
 | 1 | Arreglado | `_escapar()` duplica la barra invertida. Probado con 14 combinaciones (`\\`, `a\\`, `\\\\`, `\\|a`, `\\+\\`, `\"` mezclado con `\\`): PNG y SVG validos en todas, tambien en el titulo |
 | 2 | Arreglado | `a_svg()` lanza `RuntimeError`, `_svg_seguro()` lo atrapa y el visor muestra el aviso en vez de un 500 |
-| 3 | Arreglado | `TOPE_DIBUJO=80` y `TOPE_TABLA=40`. El JS maneja `svg: null` y `minimizacion.aviso`; los 10 IDs que toca la rama nueva existen en `index.html` |
+| 3 | Arreglado | `TOPE_DIBUJO=80` y `TOPE_TABLA=40`. El JS maneja `svg: null` y `minimizacion.aviso`; los 10 IDs que toca la rama nueva existen en `index.html`. Medido: la peticion que tardaba 111 s ahora tarda 0.13 s |
 | 4 | Arreglado | `utf-8-sig`. Probado con BOM solo y con BOM+CRLF+comentarios: alfabeto `['a','b']`, 6 estados |
-| 5 | **Sin tocar** | `src/minimizacion.py` no cambio. Sigue: 301 estados 0.06s vs 1.54s; 2049 estados 0.02s vs 3.95s |
+| 5 | Arreglado | `_particion_por_myhill` propaga las marcas hacia atras con una cola. `'a'*2000` paso de 740 s a 1.3 s; en el visor, la peticion de 113 s paso a 0.34 s. Ver abajo |
 | 6 | Arreglado | `regex<TAB>cadena` respeta la cadena propia; `regex<TAB>` vuelve a usar la `w` del CLI |
 | 7 | Arreglado | `limpiar_salida()`. El patron borra `01_afn.png`, `01_afd_min.png`, `25_afn` (sin extension) y `.dot`, y conserva `mio.png`, `01_afd_minimo.png`, `grafico_afn.png`, `.DS_Store` |
 | 8 | Arreglado | El docstring de `shunting_yard.py` ahora dice `'e' griega minuscula, U+03B5` |
 | 9 | Arreglado | Directorio y binario dan mensaje y `exit 1` |
+| A1 | Arreglado | `_cuerpo()` con `isinstance(datos, dict)`. 16 cuerpos hostiles (`[1,2]`, `"hola"`, `5`, `null`, `true`, JSON roto, sin content-type) en los tres endpoints: todos HTTP 200 |
+| A2 | Arreglado | `traducir()` emite `(?:)`. `aε*b`, `ε*`, `ε?`, `ε+` compilan y coinciden con el AFD minimo. Ademas el generador ahora emite unarios sin parentesis, asi que las formas `ε*`, `ε+`, `ε?` de verdad se ejercitan en vez de quedar tapadas |
 
-Los menores M1 a M6 tambien quedaron cubiertos (`str()` en los campos del JSON,
-el `[ERROR]` sin encabezado duplicado, los espacios documentados en el README,
-la guardia de `maxRonda()`). De paso se arreglo algo que no estaba en el
-reporte: en `grafo_afn` el color de las aristas epsilon se decidia con
-`etiqueta == EPSILON`, que fallaba cuando la arista agrupaba varios simbolos;
-ahora usa `unicos == [EPSILON]`.
+De paso se arreglo algo que no estaba en el reporte: en `grafo_afn` el color de
+las aristas epsilon se decidia con `etiqueta == EPSILON`, que fallaba cuando la
+arista agrupaba varios simbolos; ahora usa `unicos == [EPSILON]`.
 
-**Nada de teoria se rompio con los cambios.** Barrido posterior a los arreglos:
-18 000 expresiones y 9 767 340 comparaciones contra `re.fullmatch`, mas 2 000
-expresiones de invariantes, 4 860 pares algebraicos y 300 000 cadenas de
-basura: cero hallazgos. `tests.py` sigue en 30/30 y `pruebas_exhaustivas.py` en
-6 602 verificaciones.
+**Nada de teoria se rompio.** Barrido sobre `f34e83a`: 24 000 expresiones y
+**13 023 816 comparaciones** contra `re.fullmatch`, mas 2 000 de invariantes,
+1 957 AFDs minimos por fuerza bruta, 4 860 pares algebraicos y 300 000 cadenas
+de basura. Cero hallazgos. `tests.py` sigue en 30/30 y `pruebas_exhaustivas.py`
+pasa con ocho semillas distintas (~6 600 verificaciones cada una).
 
-### Lo que sigue abierto
+### El hallazgo 5: que se hizo y hasta donde llega
 
-**A1. JSON valido pero que no es un objeto: HTTP 500 en los tres endpoints.**
+El punto fijo de `_particion_por_myhill` recorria los C(n,2) pares en cada
+ronda preguntando si los destinos de cada par ya estaban marcados. Ahora la
+propagacion va **hacia atras**: se guardan los predecesores de cada estado y
+cada par recien marcado avisa una sola vez a los pares que llegan a el, con una
+cola. Es la misma relacion de Myhill-Nerode y el mismo resultado, sin repetir
+trabajo: el costo baja de O(rondas · n² · |alfabeto|) a O(n² · |alfabeto|).
 
-```bash
-curl -X POST -H 'Content-Type: application/json' -d '[1,2]' localhost:5000/api/procesar
+Comprobado sobre 3 000 AFDs generados al azar: la particion que devuelve el
+metodo nuevo es identica, bloque por bloque, a la del metodo anterior y a la de
+`agrupacion`.
+
+| caso | AFD | antes | ahora |
+|---|---|---|---|
+| `'a'*300` | 301 | 1.45 s | 0.02 s |
+| `'a'*2000` | 2 001 | 740.53 s | 1.27 s |
+| `(a\|b)*a` + `(a\|b)`×12 | 8 193 | 108.03 s | 43.12 s |
+
+**Hasta donde llega, y por que.** El metodo de tabla de pares es cuadratico por
+definicion: la tabla tiene C(n,2) celdas, y en un AFD de 8 193 estados donde
+casi ningun par es equivalente hay que marcar 33 millones de pares. Ningun
+arreglo de implementacion cambia eso; el refinamiento de particiones es
+O(n log n) porque no construye la tabla. La mejora de 740 s a 1.3 s es el caso
+de muchas rondas, que era el defecto real. La de 108 s a 43 s es solo la
+constante, porque ahi el cuadratico es intrinseco.
+
+Por eso `app.py` ahora compara los dos metodos solo por debajo de
+`TOPE_COMPARAR = 600` estados (0.1 s), y por encima minimiza solo por
+agrupacion y lo dice en la respuesta. El campo `coinciden` viaja como `null`
+cuando no se comparo, que **no** es lo mismo que `false`; el visor distingue
+los tres casos y muestra "no se compararon los dos metodos" en vez de una
+alarma falsa. `main.py` los sigue comparando siempre: en la linea de comandos
+la espera se tolera y es donde se demuestra que los dos metodos coinciden.
+
+| expresion | AFD | `/api/procesar` antes | ahora |
+|---|---|---|---|
+| `(a\|b)*a` + `(a\|b)`×8 | 513 | 0.29 s | 0.20 s (compara los dos metodos) |
+| `(a\|b)*a` + `(a\|b)`×10 | 2 049 | 3.99 s | 0.16 s |
+| `(a\|b)*a` + `(a\|b)`×11 | 4 097 | 19.29 s | 0.25 s |
+| `(a\|b)*a` + `(a\|b)`×12 | 8 193 | 113.51 s | **0.34 s** |
+
+La prueba de escalabilidad de `pruebas_adversarias.py` cambio en consecuencia.
+Antes exigia que los dos metodos tardaran parecido, que es una expectativa
+equivocada: nunca van a hacerlo, y esa prueba habria seguido en rojo para
+siempre. Ahora mide lo que si es exigible, que myhill crezca como n² y no como
+n³: con `'a'*n` para n = 100, 200, 400, al duplicar n el tiempo se multiplica
+por 3.9 (cuadratico). Inyectando el algoritmo anterior da 8.1 y la prueba
+falla, asi que detecta la regresion en vez de limitarse a estar verde.
+
+---
+
+## Cumplimiento del enunciado (`Proyecto_1-1.pdf`)
+
+Verificado corriendo el programa contra un archivo con una expresion regular por
+linea, como lo dara el calificador.
+
+| Lo que pide el enunciado | Estado | Evidencia |
+|---|---|---|
+| Repositorio de GitHub | Cumple | `origin` apunta a `github.com/fatupopzz/proyecto1-teoria` |
+| Entrada: una expresion regular `r` y una cadena `w` | Cumple | Modo interactivo pide las dos; modo archivo pide `w` una vez y la aplica a todas las lineas |
+| Simbolo para epsilon designado por el programador, razonable, que no sea letra ni numero | Cumple | `EPSILON = 'ε'` (U+03B5) en `src/shunting_yard.py:18`. El programa lo anuncia al arrancar: `Simbolo designado para epsilon: 'ε'` |
+| 1. Infix a postfix | Cumple, 3 pts | `[1] Postfix (Shunting Yard): bb\|*a.b.b.ab\|*.` para `(b\|b)*abb(a\|b)*` |
+| 2. AFN con Thompson desde postfix | Cumple, 3 pts | `[2] AFN construido con Thompson: 22 estados` |
+| 3. AFN a AFD por subconjuntos | Cumple, 3 pts | `[3] AFD por construccion de subconjuntos: 7 estados`, con la correspondencia a los subconjuntos del AFN |
+| 4. Minimizacion del AFD | Cumple, 3 pts | `[4] AFD minimizado: 7 -> 4 estados`. Implementa **dos** metodos y comprueba que dan el mismo resultado |
+| 5. Verificar `w ∈ L(r)` con el AFN y los AFDs | Cumple, 3 pts | Simula los tres y los tres coinciden |
+| Salida: una imagen del grafo para el AFN y para los dos AFDs | Cumple | 3 PNG por expresion (`NN_afn.png`, `NN_afd.png`, `NN_afd_min.png`). Con 5 expresiones salen 15 archivos |
+| La imagen muestra estado inicial, los demas estados, el de aceptacion y las transiciones con sus simbolos | Cumple | Flecha desde la nada al inicial, doble circulo en los de aceptacion, cada arista rotulada con su simbolo, epsilon en gris |
+| Respuesta con "si" en caso de aceptacion y "no" en caso contrario | Cumple | `main.py:41` devuelve literalmente `"sí"` / `"no"` |
+| Leer un archivo de texto y procesar cada linea | Cumple, con una salvedad | Ver abajo |
+
+El ejemplo exacto del enunciado (`r = (b|b)*abb(a|b)*`, `w = babbaaaa`) da `sí`
+en los tres automatas.
+
+### La salvedad: dos convenciones que el enunciado no pide
+
+El enunciado dice que **cada linea del archivo contiene una expresion regular**,
+y que el archivo lo trae el calificador. `main.py:173-184` agrega dos
+convenciones propias:
+
+| Linea en el archivo | Lo que hace el programa |
+|---|---|
+| `#\|a` | La **ignora en silencio**: cree que es un comentario |
+| `a<TAB>b` | La parte en dos: procesa la expresion `a` con la cadena `b` |
+
+Las dos son expresiones regulares validas para este mismo tokenizador (`#` y el
+tabulador se aceptan como simbolos del alfabeto en cualquier otra posicion:
+`a#b` se procesa bien, con `#` en el alfabeto). O sea que el programa acepta `#`
+como simbolo en medio de una expresion pero no al principio de una linea, lo
+cual es inconsistente.
+
+Probado con un archivo de 4 lineas (`#|a`, `a#b`, `a<TAB>b`, `(a|b)*`): el
+programa anuncia "Procesando 3 expresiones" y evalua `a#b`, `a` con `w=b`, y
+`(a|b)*`.
+
+**Riesgo real: bajo.** Nadie escribe una expresion regular que empiece con `#` o
+que lleve un tabulador adentro. Y las dos convenciones estan documentadas en el
+README. Pero si el calificador pregunta "que pasa si mi archivo trae esto",
+conviene tener la respuesta lista en vez de descubrirlo en vivo.
+
+**Cerrado.** `main.py` ahora avisa de cada linea afectada, con su numero:
+
+```
+Procesando 3 expresiones de 'raro.txt'
+  [AVISO] linea 1 ignorada por empezar con '#': #|a
+  [AVISO] linea 5 ignorada por empezar con '#': # solo un comentario
+  [AVISO] linea 3 trae un tabulador: se toma r = a  con su propia w = b
 ```
 
-`AttributeError: 'list' object has no attribute 'get'`. Tambien con `"hola"` y
-con `5`, y lo mismo en `/api/lote` y `/api/imagenes`. Causa:
-`request.get_json(silent=True) or {}` en `app.py:93`, `:157` y `:192`. El
-`or {}` solo cubre `None`; una lista o un texto no vacios son *truthy*, asi que
-el `.get()` de la linea siguiente es el que explota. Se arregla comprobando el
-tipo: `if not isinstance(datos, dict): datos = {}`.
-
-Gravedad baja: solo se alcanza con un cliente hecho a mano, no desde el visor.
-Ya esta cubierto en `pruebas_adversarias.py`, bloque `web`.
-
-**A2. `traducir()` de `pruebas_exhaustivas.py` es un oraculo que puede mentir.**
-
-`pruebas_exhaustivas.py:74` hace `regex.replace(EPSILON, '')`. Borrar epsilon no
-es lo mismo que reemplazarlo por la cadena vacia cuando lleva un operador
-detras:
-
-| expresion | traducida | problema |
-|---|---|---|
-| `aε*b` | `a*b` | el lenguaje pasa de `{ab}` a `a*b`: acepta `aaab` |
-| `ε*` | `*` | `re.error: nothing to repeat` |
-| `ε?` | `?` | `re.error: nothing to repeat` |
-
-Hoy no falla, pero por accidente: `generar_regex` siempre envuelve los unarios
-en parentesis (`f'({sub()})*'`), asi que epsilon bajo estrella sale como `(ε)*`
-y se traduce a `()*`, que si es correcto. Si alguien quita esos parentesis o
-agrega un caso a mano, el oraculo empieza a mentir **en silencio**, que es
-peor que fallar.
-
-Arreglo de una linea: `regex.replace(EPSILON, '(?:)')`. `(?:)` es un grupo no
-capturador vacio, es un atomo valido y admite `*`, `+` y `?` detras. Es lo que
-usa `pruebas_adversarias.py`.
-
-No lo toque porque `pruebas_exhaustivas.py` no es mio. Si me decis, lo cambio.
+Las convenciones se quedan, porque estan documentadas en el README y son utiles
+para el archivo de pruebas propio. Lo que cambia es que ya nada pasa en
+silencio, que era lo unico que de verdad hacia dano. Un archivo con el formato
+del enunciado (una expresion por linea, sin comentarios ni tabuladores) no
+imprime ningun aviso.
 
 ---
 

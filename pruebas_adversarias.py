@@ -1064,34 +1064,78 @@ def bloque_imagenes(rep):
 # 9. ESCALABILIDAD DE LA MINIMIZACION
 # ===================================================================
 
+def _medir(afd, metodo, repeticiones=3):
+    """Mejor de N corridas, para que el ruido del reloj no decida el veredicto."""
+    mejor = float('inf')
+    for _ in range(repeticiones):
+        t0 = time.time()
+        minimizar(afd, metodo)
+        mejor = min(mejor, time.time() - t0)
+    return mejor
+
+
 def bloque_escalabilidad(rep):
-    print("\n[9] ESCALABILIDAD: los dos metodos de minimizacion")
-    # Importa porque main.py y app.py llaman a verificar_equivalencia(), que
-    # corre SIEMPRE los dos metodos. Si uno de los dos es mucho mas lento,
-    # el pipeline entero hereda ese costo aunque el otro sea instantaneo.
-    casos = [
-        ('a' * 300, 'cadena larga: muchas rondas de propagacion'),
-        ('(a|b)*a' + '(a|b)' * 10, 'AFD ancho: muchos pares'),
-    ]
-    for r, descripcion in casos:
-        afd = construir_afd(construir_afn(a_postfix(r)[0]))
-        t0 = time.time()
-        minimizar(afd, 'agrupacion')
-        t_agr = time.time() - t0
-        t0 = time.time()
-        minimizar(afd, 'myhill')
-        t_myh = time.time() - t0
-        detalle = (f'AFD de {len(afd.estados)} estados: '
-                   f'agrupacion {t_agr:.2f}s, myhill {t_myh:.2f}s')
-        # Un factor 20 ya delata que la implementacion de myhill no escala:
-        # rehace la pasada completa sobre los C(n,2) pares en cada ronda.
-        if t_myh > 1.0 and t_myh > 20 * max(t_agr, 0.001):
-            rep.falla('escalabilidad/myhill', f'{r[:32]}... ({descripcion})',
-                      'los dos metodos en tiempos comparables', detalle,
-                      'minimizacion.py:119-134 reitera sobre todos los pares '
-                      'en cada ronda; es O(rondas * n^2 * |alfabeto|)')
-        else:
-            rep.ok(detalle)
+    print("\n[9] ESCALABILIDAD: como crece cada metodo de minimizacion")
+    # Los dos metodos NO tienen por que tardar lo mismo, y exigirlo seria una
+    # expectativa equivocada: la tabla de pares tiene C(n,2) celdas por
+    # definicion, asi que Myhill-Nerode es cuadratico haga lo que haga,
+    # mientras que el refinamiento de particiones es O(n log n). Lo que si se
+    # puede exigir es que myhill crezca como n² y no como n³, que es lo que
+    # pasaba cuando el punto fijo rehacia la pasada completa sobre todos los
+    # pares en cada ronda. Ver HALLAZGOS.md #5.
+    #
+    # Se mide con 'a'*n, que da una cadena de estados larga y por lo tanto
+    # muchas rondas de propagacion: es donde la diferencia entre n² y n³ se ve
+    # mas limpia. Al duplicar n, un algoritmo cuadratico multiplica el tiempo
+    # por ~4 y uno cubico por ~8; medido, el actual da 3.8 y el anterior 8.1.
+    medidas = []
+    for n in (100, 200, 400):
+        afd = construir_afd(construir_afn(a_postfix('a' * n)[0]))
+        medidas.append((len(afd.estados), _medir(afd, 'myhill')))
+    razones = [b / a for (_, a), (_, b) in zip(medidas, medidas[1:]) if a > 0]
+    detalle = ', '.join(f'{n} estados {t:.4f}s' for n, t in medidas)
+    peor = max(razones) if razones else 0
+
+    if peor > 6:      # justo a mitad de camino entre cuadratico y cubico
+        rep.falla('escalabilidad/myhill-crece-de-mas',
+                  "'a'*n para n = 100, 200, 400",
+                  'al duplicar los estados el tiempo se multiplica por ~4 '
+                  '(cuadratico)',
+                  f'se multiplica por {peor:.1f} ({detalle})',
+                  'sintoma de que el punto fijo volvio a recorrer todos los '
+                  'pares en cada ronda en vez de propagar hacia atras')
+    else:
+        rep.ok(f'myhill se multiplica por {peor:.1f} al duplicar n '
+               f'(cuadratico): {detalle}')
+
+    # Tiempos absolutos en el tamano mas grande que el visor compara.
+    r = '(a|b)*a' + '(a|b)' * 8          # 513 estados, por debajo de TOPE_COMPARAR
+    afd = construir_afd(construir_afn(a_postfix(r)[0]))
+    t0 = time.time()
+    verificar_equivalencia(afd)
+    demora = time.time() - t0
+    if demora > 1.0:
+        rep.falla('escalabilidad/tope-del-visor',
+                  f'{r} ({len(afd.estados)} estados)',
+                  'comparar los dos metodos en menos de 1 s',
+                  f'{demora:.2f}s',
+                  'el visor corre verificar_equivalencia() en cada tecla por '
+                  'debajo de TOPE_COMPARAR')
+    else:
+        rep.ok(f'verificar_equivalencia() con {len(afd.estados)} estados '
+               f'(el tope del visor): {demora:.3f}s')
+
+    # Y el caso que antes tardaba 740 s.
+    afd = construir_afd(construir_afn(a_postfix('a' * 300)[0]))
+    t_myhill = _medir(afd, 'myhill')
+    t_agrupacion = _medir(afd, 'agrupacion')
+    if t_myhill > 1.0:
+        rep.falla('escalabilidad/myhill-cadena-larga', "'a' * 300",
+                  'menos de 1 s', f'{t_myhill:.2f}s',
+                  f'agrupacion tarda {t_agrupacion:.2f}s sobre el mismo AFD')
+    else:
+        rep.ok(f"'a'*300 (301 estados): myhill {t_myhill:.3f}s, "
+               f'agrupacion {t_agrupacion:.3f}s')
 
 
 # ===================================================================

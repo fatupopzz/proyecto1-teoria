@@ -165,7 +165,8 @@ símbolo del alfabeto.
 ### Formato del archivo de entrada
 
 Una expresión regular por línea. Las líneas vacías y las que empiezan con `#`
-se ignoran.
+se ignoran; el programa avisa en pantalla de cada línea que salta, con su
+número, para que nada pase en silencio si el archivo lo trae el calificador.
 
 ```
 (b|b)*abb(a|b)*
@@ -175,6 +176,7 @@ se ignoran.
 
 Opcionalmente una línea puede traer su propia cadena `w`, separada por un
 tabulador. Las líneas sin cadena usan la que se pasó por la línea de comandos.
+También aquí el programa avisa de cada línea que parte por un tabulador.
 
 ```
 (a|b)*abb	babb
@@ -230,11 +232,20 @@ Y para el visor:
   - `minimizar(afd, 'myhill')` — llenado de tabla de pares: se marca cada par de
     estados distinguibles (base: uno acepta y el otro no; paso: existe un
     símbolo cuyos destinos ya están marcados) y los pares sin marcar forman las
-    clases de equivalencia.
+    clases de equivalencia. La propagación va hacia atrás, con una cola: cada
+    par recién marcado avisa a los pares que llegan a él por algún símbolo, en
+    vez de recorrer los C(n,2) pares en cada ronda. Es el mismo resultado en
+    O(n²·|Σ|) en lugar de O(rondas·n²·|Σ|).
+
+  Los dos métodos no tardan lo mismo, y no pueden: la tabla de pares tiene
+  C(n,2) celdas por definición, así que Myhill-Nerode es cuadrático, mientras
+  que el refinamiento de particiones es O(n log n) porque nunca construye la
+  tabla.
 
   `verificar_equivalencia(afd)` corre los dos y comprueba que produzcan el mismo
   AFD mínimo; el CLI lo reporta en cada expresión y `tests.py` lo verifica en los
-  30 casos. Antes de minimizar se completa el AFD con un estado trampa (ambos
+  30 casos. El visor lo hace por debajo de 600 estados, y por encima minimiza
+  solo por agrupación y lo dice, para seguir respondiendo al instante. Antes de minimizar se completa el AFD con un estado trampa (ambos
   algoritmos requieren una función de transición total). Al terminar se eliminan
   los estados inalcanzables y los muertos, y los bloques se numeran por BFS desde
   el inicial: una numeración canónica que hace comparables las salidas de los dos

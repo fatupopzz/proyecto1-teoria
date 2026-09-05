@@ -169,17 +169,31 @@ def procesar_archivo(ruta, cadena):
 
     # Cada linea trae una expresion regular. Opcionalmente puede traer tambien
     # su propia cadena w, separada por un tabulador: "regex<TAB>cadena".
+    #
+    # Las dos convenciones (el '#' de comentario y el tabulador) son nuestras:
+    # el enunciado dice que cada linea del archivo es una expresion regular. Y
+    # '#' y el tabulador son simbolos validos del alfabeto en cualquier otra
+    # posicion, asi que 'a#b' se procesa pero '#|a' se saltaria. Se avisa de
+    # cada linea afectada en vez de tratarla en silencio: si el calificador
+    # trae un archivo con esos caracteres, tiene que verlo en pantalla.
     expresiones = []
-    for linea in lineas:
+    ignoradas = []      # (numero de linea, texto) saltadas por empezar con '#'
+    partidas = []       # (numero de linea, regex, cadena) partidas por un tab
+    for numero, linea in enumerate(lineas, start=1):
         limpia = linea.strip()
-        if not limpia or limpia.startswith('#'):
+        if not limpia:
+            continue
+        if limpia.startswith('#'):
+            ignoradas.append((numero, limpia))
             continue
         if '\t' in linea:
             regex, _, propia = linea.partition('\t')
-            propia = propia.strip()
+            regex, propia = regex.strip(), propia.strip()
             # Un tabulador al final de la linea no significa "cadena vacia":
             # significa que la linea no trae cadena. Ver HALLAZGOS.md #6.
-            expresiones.append((regex.strip(), propia if propia else None))
+            expresiones.append((regex, propia if propia else None))
+            if propia:
+                partidas.append((numero, regex, propia))
         else:
             expresiones.append((limpia, None))
 
@@ -192,6 +206,11 @@ def procesar_archivo(ruta, cadena):
     print(f"Simbolo designado para epsilon: '{EPSILON}'")
     if borrados:
         print(f"Se borraron {borrados} imagenes de la corrida anterior")
+    for numero, texto in ignoradas:
+        print(f"  [AVISO] linea {numero} ignorada por empezar con '#': {texto}")
+    for numero, regex, propia in partidas:
+        print(f"  [AVISO] linea {numero} trae un tabulador: se toma "
+              f"r = {regex}  con su propia w = {propia}")
     print()
 
     for i, (regex, propia) in enumerate(expresiones, start=1):

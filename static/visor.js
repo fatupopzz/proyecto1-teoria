@@ -385,9 +385,11 @@ function pintarMinimizacion() {
     el.minLeyenda.textContent =
       `${m.n_pares} pares · ${m.celdas.length} distinguibles · ` +
       `${eq} equivalentes` +
-      (datos.minimizacion.coinciden
-        ? ' · los dos métodos coinciden'
-        : ' · ¡los métodos NO coinciden!');
+      (datos.minimizacion.coinciden === null
+        ? ' · no se compararon los dos métodos'
+        : datos.minimizacion.coinciden
+          ? ' · los dos métodos coinciden'
+          : ' · ¡los métodos NO coinciden!');
   }
 }
 

@@ -100,38 +100,51 @@ def _particion_por_myhill(estados, transiciones, aceptacion, alfabeto):
         paso    : existe un simbolo a tal que {d(p,a), d(q,a)} ya esta marcado
                   (si w distingue a los destinos, entonces a·w distingue p y q)
 
-    Se repite hasta que una pasada no marque nada nuevo. Los pares que
-    quedaron sin marcar son equivalentes, y su cierre transitivo da las
-    clases de equivalencia.
+    Los pares que quedan sin marcar son equivalentes, y su cierre transitivo
+    da las clases de equivalencia.
+
+    El paso inductivo se aplica HACIA ATRAS, con una cola de pares recien
+    marcados. Es la misma relacion y el mismo resultado que mirar hacia
+    adelante par por par, pero sin repetir trabajo: en vez de volver a
+    recorrer los C(n,2) pares en cada ronda preguntando si sus destinos ya
+    estan marcados, cada par marcado avisa una sola vez a los pares que
+    llegan a el. Cada par entra a la cola a lo sumo una vez, asi que el costo
+    baja de O(rondas · n² · |alfabeto|) a O(n² · |alfabeto|). Ver
+    HALLAZGOS.md #5: con 8193 estados eran 108 s.
     """
     lista = sorted(estados)
-    pares = [(p, q) for i, p in enumerate(lista) for q in lista[i + 1:]]
-
-    # base: un estado de aceptacion nunca es equivalente a uno que no lo es
-    marcados = {
-        (p, q) for (p, q) in pares
-        if (p in aceptacion) != (q in aceptacion)
-    }
 
     def par(a, b):
         return (a, b) if a <= b else (b, a)
 
-    # paso inductivo, hasta punto fijo
-    cambio = True
-    while cambio:
-        cambio = False
-        for (p, q) in pares:
-            if (p, q) in marcados:
-                continue
-            for simbolo in alfabeto:
-                dp = transiciones.get((p, simbolo))
-                dq = transiciones.get((q, simbolo))
-                if dp == dq:
-                    continue
-                if par(dp, dq) in marcados:
-                    marcados.add((p, q))
-                    cambio = True
-                    break
+    # Predecesores: quien llega a cada estado con cada simbolo. Es lo unico
+    # que hace falta para propagar una marca hacia atras.
+    predecesores = {}
+    for (origen, simbolo), destino in transiciones.items():
+        predecesores.setdefault((destino, simbolo), []).append(origen)
+
+    # base: un estado de aceptacion nunca es equivalente a uno que no lo es
+    marcados = set()
+    pendientes = []
+    for i, p in enumerate(lista):
+        for q in lista[i + 1:]:
+            if (p in aceptacion) != (q in aceptacion):
+                marcados.add((p, q))
+                pendientes.append((p, q))
+
+    # paso inductivo: si {p, q} esta marcado y p' -a-> p, q' -a-> q, entonces
+    # {p', q'} tambien lo esta
+    while pendientes:
+        p, q = pendientes.pop()
+        for simbolo in alfabeto:
+            for anterior_p in predecesores.get((p, simbolo), ()):
+                for anterior_q in predecesores.get((q, simbolo), ()):
+                    if anterior_p == anterior_q:
+                        continue
+                    nuevo = par(anterior_p, anterior_q)
+                    if nuevo not in marcados:
+                        marcados.add(nuevo)
+                        pendientes.append(nuevo)
 
     # los pares sin marcar son equivalentes: se unen en clases
     clase = {e: e for e in lista}
@@ -142,11 +155,12 @@ def _particion_por_myhill(estados, transiciones, aceptacion, alfabeto):
             e = clase[e]
         return e
 
-    for (p, q) in pares:
-        if (p, q) not in marcados:
-            rp, rq = raiz(p), raiz(q)
-            if rp != rq:
-                clase[max(rp, rq)] = min(rp, rq)
+    for i, p in enumerate(lista):
+        for q in lista[i + 1:]:
+            if (p, q) not in marcados:
+                rp, rq = raiz(p), raiz(q)
+                if rp != rq:
+                    clase[max(rp, rq)] = min(rp, rq)
 
     bloques = {}
     for e in lista:
