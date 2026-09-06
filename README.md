@@ -5,7 +5,7 @@ a partir de expresiones regulares. El programa recibe una expresión regular `r`
 una cadena `w`, construye el AFN, el AFD y el AFD minimizado, genera sus imágenes
 y determina si `w ∈ L(r)`.
 
-**Universidad del Valle de Guatemala** — Agosto 2025
+**Universidad del Valle de Guatemala** — Agosto 2026
 
 ---
 
